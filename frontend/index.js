@@ -1,1 +1,1 @@
-// index.js
+import "./src/main.tsx";

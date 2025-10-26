@@ -1,0 +1,73 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlmodel import Session, select
+
+from ...api.deps import get_current_active_user
+from ...db.session import get_db
+from ...models import Deck, User, UserDeckProgress
+from ...schemas.common import Message
+from ...schemas.user import UserRead, UserUpdate
+from ...services.auth import hash_password, verify_password
+
+
+router = APIRouter(prefix="/me", tags=["users"])
+
+
+@router.get("", response_model=UserRead)
+def read_current_user(current_user: User = Depends(get_current_active_user)) -> User:
+    return current_user
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.put("/password", response_model=Message)
+def change_password(
+    payload: PasswordChange,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> Message:
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid current password")
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.add(current_user)
+    db.commit()
+    return Message(message="Password updated")
+
+
+@router.delete("", response_model=Message)
+def delete_account(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> Message:
+    db.delete(current_user)
+    db.commit()
+    return Message(message="Account deleted")
+
+
+class PinDeckPayload(BaseModel):
+    pinned: bool
+
+
+@router.put("/decks/{deck_id}/pin", response_model=Message)
+def toggle_pin_deck(
+    deck_id: int,
+    payload: PinDeckPayload,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> Message:
+    deck = db.get(Deck, deck_id)
+    if not deck:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deck not found")
+    progress = db.exec(
+        select(UserDeckProgress).where(UserDeckProgress.user_id == current_user.id, UserDeckProgress.deck_id == deck_id)
+    ).first()
+    if not progress:
+        progress = UserDeckProgress(user_id=current_user.id, deck_id=deck_id, percent_complete=0.0)
+        db.add(progress)
+    progress.pinned = payload.pinned
+    db.commit()
+    return Message(message="Deck pin updated")
+

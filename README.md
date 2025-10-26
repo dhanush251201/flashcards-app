@@ -291,3 +291,41 @@ events(id, user_id FK, event_type, payload_json, created_at)
    * `npm i && npm run dev`
 
 Seed data (optional): `python scripts/seed.py` in `backend`.
+
+---
+
+## Getting Started (This Implementation)
+
+- **Frontend**: React 18 + TypeScript + Vite with Tailwind CSS and React Query (`frontend/`).
+- **Backend**: FastAPI + SQLModel + Alembic (`backend/`).
+- **Database**: PostgreSQL 15 (Docker) with SM-2 spaced repetition support.
+
+### Run with Docker Compose
+
+```bash
+docker compose -f docker/docker-compose.yml up --build
+```
+
+- Web app: http://localhost:5173
+- API docs: http://localhost:8000/docs
+
+### Run locally without Docker
+
+1. **Backend**
+   ```bash
+   cd backend
+   python -m venv .venv && source .venv/bin/activate
+   pip install -r requirements.txt
+   cp .env.example .env
+   alembic upgrade head
+   uvicorn app.main:app --reload --port 8000
+   ```
+2. **Frontend**
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env
+   npm run dev
+   ```
+
+See `docs/ARCHITECTURE.md` for a high-level overview and `backend/scripts/seed.py` to load starter content.

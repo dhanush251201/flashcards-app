@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -7,12 +7,14 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt ./requirements.txt
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/app ./app
-COPY backend/alembic ./alembic
-COPY backend/alembic.ini ./alembic.ini
+COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
+COPY scripts ./scripts
+
 ENV PYTHONPATH=/app
 
 EXPOSE 8000
