@@ -55,6 +55,7 @@ def read_deck(
                 answer=card.answer,
                 explanation=card.explanation,
                 options=card.options,
+                cloze_data=card.cloze_data,
                 created_at=card.created_at,
                 updated_at=card.updated_at,
             )
@@ -89,6 +90,7 @@ def create_deck(
                 answer=card.answer,
                 explanation=card.explanation,
                 options=card.options,
+                cloze_data=card.cloze_data,
                 created_at=card.created_at,
                 updated_at=card.updated_at,
             )
@@ -127,6 +129,7 @@ def update_deck(
                 answer=card.answer,
                 explanation=card.explanation,
                 options=card.options,
+                cloze_data=card.cloze_data,
                 created_at=card.created_at,
                 updated_at=card.updated_at,
             )

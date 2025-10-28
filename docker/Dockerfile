@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./alembic.ini
+COPY backend/tests ./tests
 ENV PYTHONPATH=/app
 
 EXPOSE 8000

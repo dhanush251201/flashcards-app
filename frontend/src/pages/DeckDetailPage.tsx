@@ -27,6 +27,7 @@ const buildCardPayload = (form: {
   answer: string;
   explanation: string;
   options: string;
+  clozeAnswers: string;
 }) => {
   const base = {
     type: form.type,
@@ -40,10 +41,40 @@ const buildCardPayload = (form: {
       .split(/\r?\n/)
       .map((option) => option.trim())
       .filter(Boolean);
-    return { ...base, options };
+    return { ...base, options, cloze_data: null };
   }
 
-  return { ...base, options: null };
+  if (form.type === "short_answer") {
+    // For short answer, options field contains acceptable answers (one per line)
+    const acceptableAnswers = form.options
+      .split(/\r?\n/)
+      .map((option) => option.trim())
+      .filter(Boolean);
+    return { ...base, options: acceptableAnswers.length > 0 ? acceptableAnswers : null, cloze_data: null };
+  }
+
+  if (form.type === "cloze") {
+    // Parse cloze answers - format: one answer per line, or multiple acceptable answers separated by |
+    const blankAnswers = form.clozeAnswers
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const blanks = blankAnswers.map((answerLine) => {
+      const multipleAnswers = answerLine.split("|").map((a) => a.trim()).filter(Boolean);
+      return {
+        answer: multipleAnswers.length > 1 ? multipleAnswers : multipleAnswers[0] || ""
+      };
+    });
+
+    return {
+      ...base,
+      options: null,
+      cloze_data: { blanks }
+    };
+  }
+
+  return { ...base, options: null, cloze_data: null };
 };
 
 export const DeckDetailPage = () => {
@@ -59,7 +90,8 @@ export const DeckDetailPage = () => {
     prompt: "",
     answer: "",
     explanation: "",
-    options: ""
+    options: "",
+    clozeAnswers: ""
   });
 
   const deckQuery = useQuery({
@@ -92,7 +124,7 @@ export const DeckDetailPage = () => {
     setCardModalOpen(false);
     setCardFormError(null);
     setEditingCard(null);
-    setCardForm({ type: "basic", prompt: "", answer: "", explanation: "", options: "" });
+    setCardForm({ type: "basic", prompt: "", answer: "", explanation: "", options: "", clozeAnswers: "" });
   };
 
   const createCardMutation = useMutation({
@@ -141,6 +173,27 @@ export const DeckDetailPage = () => {
       return;
     }
 
+    // Validate cloze cards
+    if (cardForm.type === "cloze") {
+      const blankCount = (cardForm.prompt.match(/\[BLANK\]/gi) || []).length;
+      const answerLines = cardForm.clozeAnswers.split(/\r?\n/).filter((line) => line.trim()).length;
+
+      if (blankCount === 0) {
+        setCardFormError("Cloze cards must have at least one [BLANK] in the prompt.");
+        return;
+      }
+
+      if (!cardForm.clozeAnswers.trim()) {
+        setCardFormError("Please provide answers for all blanks.");
+        return;
+      }
+
+      if (blankCount !== answerLines) {
+        setCardFormError(`Mismatch: Found ${blankCount} blank(s) but ${answerLines} answer(s). Please provide one answer per line for each blank.`);
+        return;
+      }
+    }
+
     setCardFormError(null);
     if (editingCard) {
       updateCardMutation.mutate(editingCard.id);
@@ -151,19 +204,34 @@ export const DeckDetailPage = () => {
 
   const openCreateCardModal = () => {
     setEditingCard(null);
-    setCardForm({ type: "basic", prompt: "", answer: "", explanation: "", options: "" });
+    setCardForm({ type: "basic", prompt: "", answer: "", explanation: "", options: "", clozeAnswers: "" });
     setCardFormError(null);
     setCardModalOpen(true);
   };
 
   const openEditCardModal = (card: CardModel) => {
     setEditingCard(card);
+
+    // For cloze cards, extract answers from cloze_data
+    let clozeAnswers = "";
+    if (card.type === "cloze" && card.cloze_data?.blanks) {
+      clozeAnswers = card.cloze_data.blanks
+        .map((blank) => {
+          if (Array.isArray(blank.answer)) {
+            return blank.answer.join(" | ");
+          }
+          return blank.answer;
+        })
+        .join("\n");
+    }
+
     setCardForm({
       type: card.type,
       prompt: card.prompt,
       answer: card.answer,
       explanation: card.explanation ?? "",
-      options: Array.isArray(card.options) ? card.options.join("\n") : ""
+      options: Array.isArray(card.options) ? card.options.join("\n") : "",
+      clozeAnswers
     });
     setCardFormError(null);
     setCardModalOpen(true);
@@ -306,8 +374,8 @@ export const DeckDetailPage = () => {
       </section>
 
       {isCardModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-xl my-8 rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
               {editingCard ? "Edit card" : "Add a new card"}
             </h3>
@@ -384,7 +452,7 @@ export const DeckDetailPage = () => {
                 />
               </div>
 
-              {cardForm.type === "multiple_choice" ? (
+              {cardForm.type === "multiple_choice" && (
                 <div>
                   <label htmlFor="card-options" className="text-sm font-medium text-slate-700 dark:text-slate-200">
                     Options (one per line)
@@ -398,7 +466,74 @@ export const DeckDetailPage = () => {
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
-              ) : null}
+              )}
+
+              {cardForm.type === "short_answer" && (
+                <div>
+                  <label htmlFor="card-acceptable-answers" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Acceptable Answers (one per line, optional)
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    If left empty, only the main answer will be accepted. Add variations here for partial credit.
+                  </p>
+                  <textarea
+                    id="card-acceptable-answers"
+                    value={cardForm.options}
+                    onChange={(event) => setCardForm((prev) => ({ ...prev, options: event.target.value }))}
+                    rows={3}
+                    placeholder={"Paris\nParís\nCapital of France"}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+              )}
+
+              {cardForm.type === "cloze" && (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-500/30 dark:bg-blue-500/10">
+                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">How to create cloze cards:</p>
+                    <ul className="mt-2 space-y-1 text-xs text-blue-600 dark:text-blue-300">
+                      <li>• Use [BLANK] in your prompt where answers should go</li>
+                      <li>• Enter one answer per line below (in order of appearance)</li>
+                      <li>• For multiple acceptable answers, separate with | (e.g., "Paris | París")</li>
+                    </ul>
+                    <p className="mt-2 text-xs text-blue-600 dark:text-blue-300">
+                      Example: "The capital of France is [BLANK] and it's known for the [BLANK] Tower."
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="card-cloze-answers" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Answers for Blanks (one per line, in order)
+                    </label>
+                    <textarea
+                      id="card-cloze-answers"
+                      value={cardForm.clozeAnswers}
+                      onChange={(event) => setCardForm((prev) => ({ ...prev, clozeAnswers: event.target.value }))}
+                      rows={4}
+                      required={cardForm.type === "cloze"}
+                      placeholder={"Paris | París\nEiffel"}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                  </div>
+
+                  {cardForm.prompt && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Preview:</p>
+                      <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                        {cardForm.prompt.split(/(\[BLANK\])/gi).map((part, i) =>
+                          part.match(/\[BLANK\]/i) ? (
+                            <span key={i} className="inline-block rounded bg-brand-100 px-2 py-0.5 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                              _____
+                            </span>
+                          ) : (
+                            <span key={i}>{part}</span>
+                          )
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {cardFormError ? (
                 <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">

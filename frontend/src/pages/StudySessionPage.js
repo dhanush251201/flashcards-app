@@ -14,6 +14,8 @@ export const StudySessionPage = () => {
     const [isAutoFlip, setIsAutoFlip] = useState(false);
     const [flipped, setFlipped] = useState(false);
     const [userAnswer, setUserAnswer] = useState(null);
+    const [shortAnswerInput, setShortAnswerInput] = useState("");
+    const [clozeAnswers, setClozeAnswers] = useState([]);
     const sessionQuery = useQuery({
         queryKey: ["session", sessionId],
         queryFn: async () => {
@@ -66,9 +68,29 @@ export const StudySessionPage = () => {
         }
         return currentCard.options.filter((option) => Boolean(option && option.trim()));
     }, [currentCard]);
+    const clozeText = useMemo(() => {
+        if (!currentCard || currentCard.type !== "cloze")
+            return null;
+        return currentCard.prompt;
+    }, [currentCard]);
+    const clozeBlanksCount = useMemo(() => {
+        if (!currentCard?.cloze_data?.blanks)
+            return 0;
+        return currentCard.cloze_data.blanks.length;
+    }, [currentCard]);
     const isMultipleChoice = multipleChoiceOptions.length > 0;
+    const isShortAnswer = currentCard?.type === "short_answer";
+    const isCloze = currentCard?.type === "cloze";
     const selectedIsCorrect = isMultipleChoice && userAnswer !== null && normalize(userAnswer) === normalize(currentCard?.answer);
-    const readyForNext = isMultipleChoice ? userAnswer !== null : flipped;
+    const readyForNext = useMemo(() => {
+        if (isMultipleChoice)
+            return userAnswer !== null;
+        if (isShortAnswer)
+            return userAnswer !== null;
+        if (isCloze)
+            return userAnswer !== null && clozeAnswers.length === clozeBlanksCount;
+        return flipped;
+    }, [isMultipleChoice, isShortAnswer, isCloze, userAnswer, flipped, clozeAnswers.length, clozeBlanksCount]);
     useEffect(() => {
         if (isAutoFlip) {
             setFlipped(true);
@@ -81,16 +103,47 @@ export const StudySessionPage = () => {
     }, [isAutoFlip]);
     useEffect(() => {
         setUserAnswer(null);
-    }, [currentCard?.id]);
+        setShortAnswerInput("");
+        // Initialize cloze answers array with empty strings for each blank
+        if (currentCard?.type === "cloze" && currentCard.cloze_data?.blanks) {
+            setClozeAnswers(new Array(currentCard.cloze_data.blanks.length).fill(""));
+        }
+        else {
+            setClozeAnswers([]);
+        }
+    }, [currentCard?.id, currentCard?.type, currentCard?.cloze_data]);
     useEffect(() => {
-        if (isMultipleChoice && userAnswer) {
+        if ((isMultipleChoice || isShortAnswer || isCloze) && userAnswer) {
             setFlipped(true);
         }
-    }, [isMultipleChoice, userAnswer]);
+    }, [isMultipleChoice, isShortAnswer, isCloze, userAnswer]);
     const handleSelectOption = (option) => {
         if (answerMutation.isPending)
             return;
         setUserAnswer(option);
+    };
+    const handleSubmitShortAnswer = () => {
+        if (answerMutation.isPending || !shortAnswerInput.trim())
+            return;
+        setUserAnswer(shortAnswerInput.trim());
+    };
+    const handleSubmitCloze = () => {
+        if (answerMutation.isPending)
+            return;
+        // Check if all blanks are filled
+        if (clozeAnswers.some(a => !a || !a.trim())) {
+            console.log("Some blanks not filled:", clozeAnswers);
+            return;
+        }
+        const answersJson = JSON.stringify(clozeAnswers);
+        console.log("Setting user answer:", answersJson);
+        console.log("Current card cloze_data:", currentCard?.cloze_data);
+        setUserAnswer(answersJson);
+    };
+    const handleClozeInputChange = (index, value) => {
+        const newAnswers = [...clozeAnswers];
+        newAnswers[index] = value;
+        setClozeAnswers(newAnswers);
     };
     const deriveQuality = () => {
         if (!isReviewMode)
@@ -111,6 +164,8 @@ export const StudySessionPage = () => {
         });
         setFlipped(false);
         setUserAnswer(null);
+        setShortAnswerInput("");
+        setClozeAnswers([]);
         if (cardIndex >= cards.length - 1) {
             await finishMutation.mutateAsync();
         }
@@ -126,18 +181,43 @@ export const StudySessionPage = () => {
     }
     return (_jsxs("div", { className: "space-y-8", children: [_jsxs("header", { className: "flex flex-wrap items-center justify-between gap-4", children: [_jsxs("div", { children: [_jsx("p", { className: "text-xs uppercase tracking-wide text-slate-400", children: "Study session" }), _jsx("h1", { className: "text-2xl font-semibold text-slate-900 dark:text-white", children: deckQuery.data?.title }), _jsxs("p", { className: "text-sm text-slate-500 dark:text-slate-300", children: ["Card ", cardIndex + 1, " of ", cards.length] })] }), _jsxs("div", { className: "flex items-center gap-3", children: [_jsxs("button", { type: "button", onClick: () => setIsAutoFlip((prev) => !prev), className: `flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${isAutoFlip
                                     ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                                    : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900"}`, children: [isAutoFlip ? _jsx(PauseIcon, { className: "size-4" }) : _jsx(PlayIcon, { className: "size-4" }), " Auto flip"] }), _jsx("button", { type: "button", onClick: () => finishMutation.mutateAsync(), className: "rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-300", children: "End session" })] })] }), _jsx("div", { className: "rounded-3xl bg-white p-8 shadow-card shadow-brand-500/15 dark:bg-slate-900", children: _jsxs("div", { className: "mx-auto max-w-2xl space-y-6", children: [_jsx(Flashcard, { card: currentCard, flipped: flipped, onToggle: () => setFlipped((prev) => !prev) }), isMultipleChoice && (_jsxs("div", { className: "rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500", children: "Choose an answer" }), _jsx("div", { className: "mt-3 grid gap-2", children: multipleChoiceOptions.map((option, index) => {
+                                    : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900"}`, children: [isAutoFlip ? _jsx(PauseIcon, { className: "size-4" }) : _jsx(PlayIcon, { className: "size-4" }), " Auto flip"] }), _jsx("button", { type: "button", onClick: () => finishMutation.mutateAsync(), className: "rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-300", children: "End session" })] })] }), _jsx("div", { className: "rounded-3xl bg-white p-8 shadow-card shadow-brand-500/15 dark:bg-slate-900", children: _jsxs("div", { className: "mx-auto max-w-2xl space-y-6", children: [!isCloze && (_jsx(Flashcard, { card: currentCard, flipped: flipped, onToggle: () => setFlipped((prev) => !prev) })), isMultipleChoice && (_jsxs("div", { className: "rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500", children: "Choose an answer" }), _jsx("div", { className: "mt-3 grid gap-2", children: multipleChoiceOptions.map((option, index) => {
                                         const isSelected = userAnswer === option;
                                         return (_jsxs("button", { type: "button", onClick: () => handleSelectOption(option), className: `flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${isSelected
                                                 ? "border-brand-400 bg-white text-brand-700 shadow-sm dark:border-brand-500/60 dark:bg-slate-900 dark:text-brand-200"
                                                 : "border-transparent bg-white text-slate-600 hover:border-brand-200 hover:text-brand-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-brand-500/40"}`, disabled: answerMutation.isPending, children: [_jsx("span", { children: option }), isSelected && _jsx(ArrowRightIcon, { className: "size-4 text-brand-500 dark:text-brand-200" })] }, `${option}-${index}`));
                                     }) }), userAnswer && (_jsx("div", { className: `mt-4 rounded-2xl px-4 py-3 text-sm ${selectedIsCorrect
                                         ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: selectedIsCorrect ? "Great job! You picked the correct answer." : _jsxs("span", { children: ["Correct answer: ", currentCard.answer] }) }))] })), _jsxs("div", { className: "flex items-center justify-between text-xs text-slate-400", children: [_jsx("button", { type: "button", onClick: () => setFlipped((prev) => !prev), className: "text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300", children: flipped
-                                        ? isMultipleChoice
+                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: selectedIsCorrect ? "Great job! You picked the correct answer." : _jsxs("span", { children: ["Correct answer: ", currentCard.answer] }) }))] })), isShortAnswer && (_jsxs("div", { className: "rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500", children: "Type your answer" }), _jsxs("div", { className: "mt-3 space-y-3", children: [_jsx("input", { type: "text", value: shortAnswerInput, onChange: (e) => setShortAnswerInput(e.target.value), onKeyDown: (e) => {
+                                                if (e.key === "Enter" && shortAnswerInput.trim()) {
+                                                    handleSubmitShortAnswer();
+                                                }
+                                            }, placeholder: "Enter your answer...", disabled: userAnswer !== null || answerMutation.isPending, className: "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500" }), !userAnswer && (_jsx("button", { type: "button", onClick: handleSubmitShortAnswer, disabled: !shortAnswerInput.trim() || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: "Submit Answer" }))] }), userAnswer && (_jsx("div", { className: `mt-4 rounded-2xl px-4 py-3 text-sm ${normalize(userAnswer) === normalize(currentCard.answer) ||
+                                        (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer)))
+                                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: normalize(userAnswer) === normalize(currentCard.answer) ||
+                                        (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer))) ? ("Great job! Your answer is correct.") : (_jsxs("div", { children: [_jsxs("p", { className: "font-semibold", children: ["Your answer: ", userAnswer] }), _jsxs("p", { className: "mt-1", children: ["Correct answer", currentCard.options && currentCard.options.length > 1 ? "s" : "", ":", " ", currentCard.options && currentCard.options.length > 0 ? currentCard.options.join(", ") : currentCard.answer] })] })) }))] })), isCloze && clozeText && (_jsx("div", { className: "space-y-4", children: _jsxs("div", { className: "rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 dark:border-brand-500/30 dark:from-brand-900/20 dark:to-slate-900", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400", children: "Fill in the blanks" }), _jsx("div", { className: "mt-3 text-base leading-relaxed text-slate-800 dark:text-slate-200", children: (() => {
+                                            let blankCounter = 0;
+                                            return clozeText.split(/(\[BLANK\])/gi).map((part, i) => {
+                                                if (part.match(/\[BLANK\]/i)) {
+                                                    const currentBlankIndex = blankCounter;
+                                                    blankCounter++;
+                                                    return (_jsx("input", { type: "text", value: clozeAnswers[currentBlankIndex] ?? "", onChange: (e) => handleClozeInputChange(currentBlankIndex, e.target.value), disabled: userAnswer !== null || answerMutation.isPending, className: "mx-1 inline-block w-32 rounded-lg border-2 border-brand-300 bg-white px-3 py-1.5 text-center text-sm font-medium text-slate-900 placeholder-slate-400 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500/40 dark:bg-slate-800 dark:text-white", placeholder: "?" }, i));
+                                                }
+                                                return _jsx("span", { children: part }, i);
+                                            });
+                                        })() }), !userAnswer && (_jsxs("div", { className: "mt-4 space-y-2", children: [_jsx("button", { type: "button", onClick: handleSubmitCloze, disabled: clozeAnswers.some((a) => !a || !a.trim()) || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: "Submit Answer" }), _jsxs("p", { className: "text-xs text-slate-400", children: ["Filled: ", clozeAnswers.filter(a => a && a.trim()).length, " / ", clozeBlanksCount] })] })), userAnswer ? (_jsxs("div", { className: "mt-4 space-y-2", children: [_jsxs("p", { className: "text-xs text-slate-500", children: ["Debug: userAnswer is set, cloze_data exists: ", currentCard.cloze_data ? 'yes' : 'no'] }), currentCard.cloze_data && currentCard.cloze_data.blanks ? (currentCard.cloze_data.blanks.map((blank, idx) => {
+                                                const userAns = clozeAnswers[idx];
+                                                const correctAnswers = Array.isArray(blank.answer) ? blank.answer : [blank.answer];
+                                                const isCorrect = correctAnswers.some((ans) => normalize(ans) === normalize(userAns));
+                                                return (_jsx("div", { className: `rounded-2xl px-4 py-3 text-sm ${isCorrect
+                                                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: _jsxs("p", { children: [_jsxs("span", { className: "font-semibold", children: ["Blank ", idx + 1, ":"] }), " ", userAns, isCorrect ? " ✓" : ` ✗ (Correct: ${correctAnswers.join(", ")})`] }) }, idx));
+                                            })) : (_jsx("p", { className: "text-sm text-rose-600", children: "Error: Missing cloze_data or blanks" }))] })) : null] }) })), _jsxs("div", { className: "flex items-center justify-between text-xs text-slate-400", children: [_jsx("button", { type: "button", onClick: () => setFlipped((prev) => !prev), className: "text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300", children: flipped
+                                        ? isMultipleChoice || isShortAnswer || isCloze
                                             ? "Hide explanation"
                                             : "Hide answer"
-                                        : isMultipleChoice
+                                        : isMultipleChoice || isShortAnswer || isCloze
                                             ? "Show explanation"
                                             : "Reveal answer" }), _jsxs("div", { children: [cardIndex + 1, "/", cards.length] })] }), _jsxs("div", { className: "flex flex-col gap-3 rounded-3xl bg-slate-100/70 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between", children: [_jsx("p", { className: "text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400", children: "Progress" }), _jsx("div", { className: "flex items-center gap-3", children: _jsxs("button", { type: "button", onClick: handleNext, disabled: !readyForNext || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: [cardIndex === cards.length - 1 ? "Finish session" : "Next card", _jsx(ArrowRightIcon, { className: "size-4" })] }) })] })] }) })] }));
 };

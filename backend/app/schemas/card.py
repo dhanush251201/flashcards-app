@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,8 @@ class CardBase(BaseModel):
     prompt: str
     answer: str
     explanation: Optional[str] = None
-    options: Optional[List[str]] = None
+    options: Optional[List[str]] = None  # For MULTIPLE_CHOICE and SHORT_ANSWER (valid answers)
+    cloze_data: Optional[Dict[str, Any]] = None  # For CLOZE type cards
 
 
 class CardCreate(CardBase):
@@ -24,6 +25,7 @@ class CardUpdate(BaseModel):
     answer: Optional[str] = None
     explanation: Optional[str] = None
     options: Optional[List[str]] = Field(default=None)
+    cloze_data: Optional[Dict[str, Any]] = Field(default=None)
 
 
 class CardRead(CardBase):
@@ -31,4 +33,7 @@ class CardRead(CardBase):
     deck_id: int
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
 

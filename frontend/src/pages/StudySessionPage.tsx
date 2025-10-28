@@ -24,6 +24,8 @@ export const StudySessionPage = () => {
   const [isAutoFlip, setIsAutoFlip] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [userAnswer, setUserAnswer] = useState<string | null>(null);
+  const [shortAnswerInput, setShortAnswerInput] = useState("");
+  const [clozeAnswers, setClozeAnswers] = useState<string[]>([]);
 
   const sessionQuery = useQuery({
     queryKey: ["session", sessionId],
@@ -84,10 +86,29 @@ export const StudySessionPage = () => {
     return currentCard.options.filter((option) => Boolean(option && option.trim()));
   }, [currentCard]);
 
+  const clozeText = useMemo(() => {
+    if (!currentCard || currentCard.type !== "cloze") return null;
+    return currentCard.prompt;
+  }, [currentCard]);
+
+  const clozeBlanksCount = useMemo(() => {
+    if (!currentCard?.cloze_data?.blanks) return 0;
+    return currentCard.cloze_data.blanks.length;
+  }, [currentCard]);
+
   const isMultipleChoice = multipleChoiceOptions.length > 0;
+  const isShortAnswer = currentCard?.type === "short_answer";
+  const isCloze = currentCard?.type === "cloze";
+
   const selectedIsCorrect =
     isMultipleChoice && userAnswer !== null && normalize(userAnswer) === normalize(currentCard?.answer);
-  const readyForNext = isMultipleChoice ? userAnswer !== null : flipped;
+
+  const readyForNext = useMemo(() => {
+    if (isMultipleChoice) return userAnswer !== null;
+    if (isShortAnswer) return userAnswer !== null;
+    if (isCloze) return userAnswer !== null && clozeAnswers.length === clozeBlanksCount;
+    return flipped;
+  }, [isMultipleChoice, isShortAnswer, isCloze, userAnswer, flipped, clozeAnswers.length, clozeBlanksCount]);
 
   useEffect(() => {
     if (isAutoFlip) {
@@ -103,17 +124,48 @@ export const StudySessionPage = () => {
 
   useEffect(() => {
     setUserAnswer(null);
-  }, [currentCard?.id]);
+    setShortAnswerInput("");
+    // Initialize cloze answers array with empty strings for each blank
+    if (currentCard?.type === "cloze" && currentCard.cloze_data?.blanks) {
+      setClozeAnswers(new Array(currentCard.cloze_data.blanks.length).fill(""));
+    } else {
+      setClozeAnswers([]);
+    }
+  }, [currentCard?.id, currentCard?.type, currentCard?.cloze_data]);
 
   useEffect(() => {
-    if (isMultipleChoice && userAnswer) {
+    if ((isMultipleChoice || isShortAnswer || isCloze) && userAnswer) {
       setFlipped(true);
     }
-  }, [isMultipleChoice, userAnswer]);
+  }, [isMultipleChoice, isShortAnswer, isCloze, userAnswer]);
 
   const handleSelectOption = (option: string) => {
     if (answerMutation.isPending) return;
     setUserAnswer(option);
+  };
+
+  const handleSubmitShortAnswer = () => {
+    if (answerMutation.isPending || !shortAnswerInput.trim()) return;
+    setUserAnswer(shortAnswerInput.trim());
+  };
+
+  const handleSubmitCloze = () => {
+    if (answerMutation.isPending) return;
+    // Check if all blanks are filled
+    if (clozeAnswers.some(a => !a || !a.trim())) {
+      console.log("Some blanks not filled:", clozeAnswers);
+      return;
+    }
+    const answersJson = JSON.stringify(clozeAnswers);
+    console.log("Setting user answer:", answersJson);
+    console.log("Current card cloze_data:", currentCard?.cloze_data);
+    setUserAnswer(answersJson);
+  };
+
+  const handleClozeInputChange = (index: number, value: string) => {
+    const newAnswers = [...clozeAnswers];
+    newAnswers[index] = value;
+    setClozeAnswers(newAnswers);
   };
 
   const deriveQuality = () => {
@@ -137,6 +189,8 @@ export const StudySessionPage = () => {
 
     setFlipped(false);
     setUserAnswer(null);
+    setShortAnswerInput("");
+    setClozeAnswers([]);
 
     if (cardIndex >= cards.length - 1) {
       await finishMutation.mutateAsync();
@@ -202,7 +256,9 @@ export const StudySessionPage = () => {
 
       <div className="rounded-3xl bg-white p-8 shadow-card shadow-brand-500/15 dark:bg-slate-900">
         <div className="mx-auto max-w-2xl space-y-6">
-          <Flashcard card={currentCard} flipped={flipped} onToggle={() => setFlipped((prev) => !prev)} />
+          {!isCloze && (
+            <Flashcard card={currentCard} flipped={flipped} onToggle={() => setFlipped((prev) => !prev)} />
+          )}
 
           {isMultipleChoice && (
             <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40">
@@ -245,6 +301,144 @@ export const StudySessionPage = () => {
             </div>
           )}
 
+          {isShortAnswer && (
+            <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                Type your answer
+              </p>
+              <div className="mt-3 space-y-3">
+                <input
+                  type="text"
+                  value={shortAnswerInput}
+                  onChange={(e) => setShortAnswerInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && shortAnswerInput.trim()) {
+                      handleSubmitShortAnswer();
+                    }
+                  }}
+                  placeholder="Enter your answer..."
+                  disabled={userAnswer !== null || answerMutation.isPending}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500"
+                />
+                {!userAnswer && (
+                  <button
+                    type="button"
+                    onClick={handleSubmitShortAnswer}
+                    disabled={!shortAnswerInput.trim() || answerMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Submit Answer
+                  </button>
+                )}
+              </div>
+
+              {userAnswer && (
+                <div
+                  className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                    normalize(userAnswer) === normalize(currentCard.answer) ||
+                    (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer)))
+                      ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                  }`}
+                >
+                  {normalize(userAnswer) === normalize(currentCard.answer) ||
+                  (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer))) ? (
+                    "Great job! Your answer is correct."
+                  ) : (
+                    <div>
+                      <p className="font-semibold">Your answer: {userAnswer}</p>
+                      <p className="mt-1">
+                        Correct answer{currentCard.options && currentCard.options.length > 1 ? "s" : ""}:{" "}
+                        {currentCard.options && currentCard.options.length > 0 ? currentCard.options.join(", ") : currentCard.answer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isCloze && clozeText && (
+            <div className="space-y-4">
+              <div className="rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 dark:border-brand-500/30 dark:from-brand-900/20 dark:to-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+                  Fill in the blanks
+                </p>
+                <div className="mt-3 text-base leading-relaxed text-slate-800 dark:text-slate-200">
+                  {(() => {
+                    let blankCounter = 0;
+                    return clozeText.split(/(\[BLANK\])/gi).map((part, i) => {
+                      if (part.match(/\[BLANK\]/i)) {
+                        const currentBlankIndex = blankCounter;
+                        blankCounter++;
+                        return (
+                          <input
+                            key={i}
+                            type="text"
+                            value={clozeAnswers[currentBlankIndex] ?? ""}
+                            onChange={(e) => handleClozeInputChange(currentBlankIndex, e.target.value)}
+                            disabled={userAnswer !== null || answerMutation.isPending}
+                            className="mx-1 inline-block w-32 rounded-lg border-2 border-brand-300 bg-white px-3 py-1.5 text-center text-sm font-medium text-slate-900 placeholder-slate-400 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500/40 dark:bg-slate-800 dark:text-white"
+                            placeholder="?"
+                          />
+                        );
+                      }
+                      return <span key={i}>{part}</span>;
+                    });
+                  })()}
+                </div>
+
+                {!userAnswer && (
+                  <div className="mt-4 space-y-2">
+                    <button
+                      type="button"
+                      onClick={handleSubmitCloze}
+                      disabled={clozeAnswers.some((a) => !a || !a.trim()) || answerMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Submit Answer
+                    </button>
+                    {/* Debug info - can be removed later */}
+                    <p className="text-xs text-slate-400">
+                      Filled: {clozeAnswers.filter(a => a && a.trim()).length} / {clozeBlanksCount}
+                    </p>
+                  </div>
+                )}
+
+                {userAnswer ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs text-slate-500">Debug: userAnswer is set, cloze_data exists: {currentCard.cloze_data ? 'yes' : 'no'}</p>
+                    {currentCard.cloze_data && currentCard.cloze_data.blanks ? (
+                      currentCard.cloze_data.blanks.map((blank, idx) => {
+                        const userAns = clozeAnswers[idx];
+                        const correctAnswers = Array.isArray(blank.answer) ? blank.answer : [blank.answer];
+                        const isCorrect = correctAnswers.some((ans) => normalize(ans) === normalize(userAns));
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`rounded-2xl px-4 py-3 text-sm ${
+                              isCorrect
+                                ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                            }`}
+                          >
+                            <p>
+                              <span className="font-semibold">Blank {idx + 1}:</span> {userAns}
+                              {isCorrect ? " ✓" : ` ✗ (Correct: ${correctAnswers.join(", ")})`}
+                            </p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-rose-600">Error: Missing cloze_data or blanks</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-xs text-slate-400">
             <button
               type="button"
@@ -252,10 +446,10 @@ export const StudySessionPage = () => {
               className="text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300"
             >
               {flipped
-                ? isMultipleChoice
+                ? isMultipleChoice || isShortAnswer || isCloze
                   ? "Hide explanation"
                   : "Hide answer"
-                : isMultipleChoice
+                : isMultipleChoice || isShortAnswer || isCloze
                   ? "Show explanation"
                   : "Reveal answer"}
             </button>

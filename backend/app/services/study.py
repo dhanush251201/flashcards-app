@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, List, Tuple
+import json
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -78,6 +79,82 @@ def _apply_sm2(review: SRSReview, quality: int) -> None:
     review.due_at = datetime.now(tz=timezone.utc) + timedelta(days=review.interval_days)
 
 
+def _normalize_answer(text: str | None) -> str:
+    """Normalize answer text for comparison (lowercase, strip whitespace)."""
+    if not text:
+        return ""
+    return text.strip().lower()
+
+
+def _check_cloze_answer(card: Card, user_answer: str | None) -> bool:
+    """
+    Check if user answer is correct for CLOZE type cards.
+    Expected format for user_answer: JSON string with array of answers
+    Expected format for cloze_data: {"blanks": [{"answer": "Paris"}, {"answer": ["Art", "Fashion"]}]}
+    """
+    if not user_answer or not card.cloze_data:
+        return False
+
+    try:
+        # Parse user answers
+        user_answers = json.loads(user_answer) if isinstance(user_answer, str) else user_answer
+        if not isinstance(user_answers, list):
+            return False
+
+        # Get expected answers from cloze_data
+        blanks = card.cloze_data.get("blanks", [])
+        if len(user_answers) != len(blanks):
+            return False
+
+        # Check each blank
+        for i, blank in enumerate(blanks):
+            user_ans = _normalize_answer(user_answers[i])
+
+            # Get acceptable answers for this blank
+            if "answer" in blank:
+                acceptable = blank["answer"]
+                # Support both single answer and multiple acceptable answers
+                if isinstance(acceptable, list):
+                    acceptable_answers = [_normalize_answer(ans) for ans in acceptable]
+                else:
+                    acceptable_answers = [_normalize_answer(acceptable)]
+
+                if user_ans not in acceptable_answers:
+                    return False
+            else:
+                return False
+
+        return True
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return False
+
+
+def _check_answer_correctness(card: Card, user_answer: str | None) -> bool:
+    """Check if user answer is correct for the given card type."""
+    if not user_answer:
+        return False
+
+    normalized_user_answer = _normalize_answer(user_answer)
+
+    if card.type == CardType.MULTIPLE_CHOICE:
+        return user_answer == card.answer
+
+    elif card.type == CardType.SHORT_ANSWER:
+        # For SHORT_ANSWER, support multiple valid answers stored in options
+        # If options is None or empty, fall back to exact match with card.answer
+        if card.options:
+            # options can be a list of acceptable answers
+            valid_answers = card.options if isinstance(card.options, list) else [card.answer]
+            return normalized_user_answer in [_normalize_answer(ans) for ans in valid_answers]
+        else:
+            return normalized_user_answer == _normalize_answer(card.answer)
+
+    elif card.type == CardType.CLOZE:
+        return _check_cloze_answer(card, user_answer)
+
+    return False
+
+
 def record_answer(
     db: Session,
     session: QuizSession,
@@ -88,10 +165,11 @@ def record_answer(
     is_correct: bool | None = None
     quality = answer_in.quality
 
-    if session.mode == QuizMode.PRACTICE and card.type == CardType.MULTIPLE_CHOICE:
-        is_correct = answer_in.user_answer == card.answer
+    # Auto-grade for PRACTICE and EXAM modes with supported card types
+    if session.mode == QuizMode.PRACTICE and card.type in [CardType.MULTIPLE_CHOICE, CardType.SHORT_ANSWER, CardType.CLOZE]:
+        is_correct = _check_answer_correctness(card, answer_in.user_answer)
     elif session.mode == QuizMode.EXAM:
-        is_correct = answer_in.user_answer == card.answer
+        is_correct = _check_answer_correctness(card, answer_in.user_answer)
 
     response = QuizResponse(
         session_id=session.id,

@@ -32,7 +32,16 @@ export const Flashcard = ({ card, flipped, onToggle }: FlashcardProps) => {
             <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-600 dark:text-brand-300">
               Prompt
             </span>
-            <p className="text-lg font-semibold text-slate-900 dark:text-white">{card.prompt}</p>
+            <p className="text-lg font-semibold text-slate-900 dark:text-white">
+              {card.type === "cloze"
+                ? card.prompt.split(/(\[BLANK\])/gi).map((part, i) =>
+                    part.match(/\[BLANK\]/i)
+                      ? <span key={i} className="inline-block mx-1 px-4 py-0.5 bg-brand-100 border-b-2 border-brand-400 dark:bg-brand-900/30 dark:border-brand-500">____</span>
+                      : <span key={i}>{part}</span>
+                  )
+                : card.prompt
+              }
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

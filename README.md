@@ -266,66 +266,170 @@ events(id, user_id FK, event_type, payload_json, created_at)
 * **Components**: Consider shadcn/ui for primitives (Dialog, Tabs, Dropdown) and compose with Tailwind utilities.
 * **Theming**: Support dark/light via `class` strategy; define CSS variables in `:root` and `.dark` in `tailwind.config
 
-### With Docker Compose (recommended)
-
-1. `cp .env.example .env` in `backend` and `frontend`.
-2. `docker compose -f docker/docker-compose.yml up --build`.
-3. Visit `http://localhost:5173` (web) and `http://localhost:8000` (api).
-
-### Without Docker
-
-1. **Database**: start Postgres (or SQLite for dev) and set `DATABASE_URL`.
-2. **API (FastAPI)**:
-
-   * `cd backend`
-   * `cp .env.example .env` and set `DATABASE_URL`, `JWT_SECRET`, `REFRESH_SECRET`.
-   * Create venv and install deps:
-
-     * macOS/Linux: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
-     * Windows (PowerShell): `python -m venv .venv; .venv\Scripts\Activate.ps1; pip install -r requirements.txt`
-   * Run migrations: `alembic upgrade head`
-   * Start API: `uvicorn app.main:app --reload --port 8000`
-3. **Web (React)**:
-
-   * `cd frontend`
-   * `npm i && npm run dev`
-
-Seed data (optional): `python scripts/seed.py` in `backend`.
-
 ---
 
-## Getting Started (This Implementation)
+## 12) Getting Started
 
-- **Frontend**: React 18 + TypeScript + Vite with Tailwind CSS and React Query (`frontend/`).
-- **Backend**: FastAPI + SQLModel + Alembic (`backend/`).
-- **Database**: PostgreSQL 15 (Docker) with SM-2 spaced repetition support.
+This implementation uses:
+- **Frontend**: React 18 + TypeScript + Vite with Tailwind CSS and React Query
+- **Backend**: FastAPI + SQLModel + Alembic
+- **Database**: PostgreSQL 15 (Docker) with SM-2 spaced repetition support
 
-### Run with Docker Compose
+### Option 1: With Docker Compose (Recommended)
 
 ```bash
+# Start all services (frontend, backend, database)
 docker compose -f docker/docker-compose.yml up --build
 ```
 
+**Access the application:**
 - Web app: http://localhost:5173
 - API docs: http://localhost:8000/docs
+- API health: http://localhost:8000/health
 
-### Run locally without Docker
+### Option 2: Run Locally Without Docker
 
-1. **Backend**
-   ```bash
-   cd backend
-   python -m venv .venv && source .venv/bin/activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   alembic upgrade head
-   uvicorn app.main:app --reload --port 8000
-   ```
-2. **Frontend**
-   ```bash
-   cd frontend
-   npm install
-   cp .env.example .env
-   npm run dev
-   ```
+**Prerequisites:**
+- Python 3.10+ with pip
+- Node.js 18+ with npm
+- PostgreSQL 15+ (or SQLite for development)
 
-See `docs/ARCHITECTURE.md` for a high-level overview and `backend/scripts/seed.py` to load starter content.
+**1. Backend Setup**
+
+```bash
+cd backend
+
+# Create and activate virtual environment
+# macOS/Linux:
+python -m venv .venv && source .venv/bin/activate
+# Windows PowerShell:
+python -m venv .venv; .venv\Scripts\Activate.ps1
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env and set DATABASE_URL, JWT_SECRET, REFRESH_SECRET
+
+# Run database migrations
+alembic upgrade head
+
+# Start the API server
+uvicorn app.main:app --reload --port 8000
+```
+
+**2. Frontend Setup**
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env and set VITE_API_BASE_URL (default: http://localhost:8000/api/v1)
+
+# Start the development server
+npm run dev
+```
+
+**3. Seed Data (Optional)**
+
+```bash
+cd backend
+python scripts/seed.py
+```
+
+This creates sample decks and cards to help you get started.
+
+---
+
+## 13) Running Tests
+
+### Backend Tests (pytest)
+
+The backend uses pytest with comprehensive test coverage (93%+) including:
+- Unit tests for services and algorithms
+- Integration tests for API endpoints
+- Authentication, deck management, and study session tests
+
+```bash
+cd backend
+
+# Run all tests with coverage report
+DATABASE_URL="sqlite:///./test.db" python -m pytest
+
+# Run with verbose output
+DATABASE_URL="sqlite:///./test.db" python -m pytest -v
+
+# Run specific test file
+DATABASE_URL="sqlite:///./test.db" python -m pytest tests/test_api_auth.py
+
+# Run with coverage report
+DATABASE_URL="sqlite:///./test.db" python -m pytest --cov=app --cov-report=html
+
+# View coverage report
+open htmlcov/index.html  # macOS
+# or
+xdg-open htmlcov/index.html  # Linux
+```
+
+**Test markers:**
+- `@pytest.mark.unit` - Unit tests (services, utilities)
+- `@pytest.mark.integration` - Integration tests (API endpoints)
+
+```bash
+# Run only unit tests
+DATABASE_URL="sqlite:///./test.db" python -m pytest -m unit
+
+# Run only integration tests
+DATABASE_URL="sqlite:///./test.db" python -m pytest -m integration
+```
+
+### Frontend Tests (Vitest)
+
+The frontend uses Vitest with React Testing Library for:
+- Component tests (Flashcard, DeckCard)
+- Store tests (authStore)
+- API client configuration tests
+
+```bash
+cd frontend
+
+# Run all tests
+npm run test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run tests in watch mode (for development)
+npm run test
+```
+
+**Coverage output locations:**
+- Backend: `backend/htmlcov/index.html`
+- Frontend: `frontend/coverage/index.html`
+
+### Continuous Integration
+
+Tests run automatically on every push via GitHub Actions. See [.github/workflows/ci.yml](.github/workflows/ci.yml) for the CI pipeline configuration.
+
+The CI pipeline includes:
+- Backend tests with PostgreSQL 15
+- Frontend tests with ESLint and TypeScript checking
+- Build verification for both frontend and backend
+- Docker image validation
+- Code coverage reporting to Codecov
+
+**Current Test Status:**
+- Backend: 118 tests passing (93% coverage)
+- Frontend: 38 tests passing
+
+See [TESTING.md](TESTING.md) for detailed testing documentation.
+
+---

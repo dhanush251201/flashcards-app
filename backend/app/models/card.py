@@ -28,6 +28,13 @@ class Card(SQLModel, table=True):
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
+    cloze_data: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
 
     created_at: datetime = Field(
         sa_column=Column(

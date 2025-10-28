@@ -93,7 +93,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         </header>
 
         <main className="flex-1 bg-slate-100/60 px-4 py-8 sm:px-6 lg:px-12 dark:bg-slate-950">
-          <div className="flex w-full flex-col space-y-10">{children}</div>
+          <div className="mx-auto flex w-full max-w-7xl flex-col space-y-10">{children}</div>
         </main>
       </div>
     </div>

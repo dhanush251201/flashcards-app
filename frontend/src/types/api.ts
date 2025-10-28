@@ -3,6 +3,14 @@ export type Tag = {
   name: string;
 };
 
+export type ClozeBlank = {
+  answer: string | string[];  // Can be single answer or array of acceptable answers
+};
+
+export type ClozeData = {
+  blanks: ClozeBlank[];
+};
+
 export type Card = {
   id: number;
   deck_id: number;
@@ -10,7 +18,8 @@ export type Card = {
   prompt: string;
   answer: string;
   explanation?: string | null;
-  options?: string[] | null;
+  options?: string[] | null;  // For MULTIPLE_CHOICE and SHORT_ANSWER (acceptable answers)
+  cloze_data?: ClozeData | null;  // For CLOZE type cards
   created_at: string;
   updated_at: string;
 };
