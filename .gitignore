@@ -12,6 +12,16 @@ frontend/dist/
 backend/.env
 frontend/.env
 
+# Testing & Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.pytest_cache/
+.vitest/
+coverage/
+
 # Editor
 .DS_Store
 *.log
