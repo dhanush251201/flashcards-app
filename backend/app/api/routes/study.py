@@ -60,7 +60,7 @@ def finish_session(
     db: Session = Depends(get_db),
 ) -> StudySessionRead:
     session = study_service.get_session_or_404(db, session_id, current_user)
-    session = study_service.finish_session(db, session)
+    session = study_service.finish_session(db, session, current_user)
     return StudySessionRead.model_validate(session)
 
 

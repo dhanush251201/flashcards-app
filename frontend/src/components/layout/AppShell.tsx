@@ -5,10 +5,12 @@ import { Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
 import { ThemeToggle } from "@/components/navigation/ThemeToggle";
 import { SidebarNav } from "@/components/navigation/SidebarNav";
 import { useAuth } from "@/hooks/useAuth";
+import { useStreak } from "@/hooks/useStreak";
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { data: streakData } = useStreak();
 
   return (
     <div className="flex min-h-screen bg-slate-100/80 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-50">
@@ -33,13 +35,6 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         <div className="mt-8">
           <SidebarNav />
         </div>
-        <div className="mt-12 space-y-3 rounded-3xl bg-slate-100 p-4 text-sm text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
-          <p className="font-semibold text-slate-700 dark:text-white">Quick tip</p>
-          <p className="leading-relaxed">
-            Press <span className="rounded bg-white px-1.5 py-0.5 text-xs shadow-sm dark:bg-slate-900">Space</span> to flip cards and
-            <span className="rounded bg-white px-1.5 py-0.5 text-xs shadow-sm dark:bg-slate-900">1-5</span> to grade.
-          </p>
-        </div>
       </aside>
 
       <div className="flex min-h-screen w-full flex-col">
@@ -63,7 +58,9 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
             <div className="flex items-center gap-3">
               <div className="relative hidden items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex">
                 <span className="text-xs uppercase tracking-wider text-slate-400">Streak</span>
-                <span className="ml-2 text-base font-semibold text-brand-600 dark:text-brand-300">42 🔥</span>
+                <span className="ml-2 text-base font-semibold text-brand-600 dark:text-brand-300">
+                  {streakData?.current_streak ?? 0} 🔥
+                </span>
               </div>
               <button className="relative flex size-10 items-center justify-center rounded-full bg-white text-slate-500 shadow-card transition hover:text-brand-600 dark:bg-slate-900 dark:text-slate-300">
                 <BellIcon className="size-5" />

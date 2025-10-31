@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -24,6 +24,9 @@ class UserRead(UserBase):
     id: int
     role: UserRole
     is_active: bool
+    current_streak: int
+    longest_streak: int
+    last_activity_date: Optional[date]
     created_at: datetime
     updated_at: datetime
 

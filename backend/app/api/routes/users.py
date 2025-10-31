@@ -1,3 +1,6 @@
+from datetime import date
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -8,6 +11,7 @@ from ...models import Deck, User, UserDeckProgress
 from ...schemas.common import Message
 from ...schemas.user import UserRead, UserUpdate
 from ...services.auth import hash_password, verify_password
+from ...services import streak as streak_service
 
 
 router = APIRouter(prefix="/me", tags=["users"])
@@ -70,4 +74,20 @@ def toggle_pin_deck(
     progress.pinned = payload.pinned
     db.commit()
     return Message(message="Deck pin updated")
+
+
+class StreakResponse(BaseModel):
+    current_streak: int
+    longest_streak: int
+    last_activity_date: Optional[date]
+    is_active: bool
+
+
+@router.get("/streak", response_model=StreakResponse)
+def get_user_streak(
+    current_user: User = Depends(get_current_active_user),
+) -> StreakResponse:
+    """Get the current user's streak statistics."""
+    stats = streak_service.get_streak_stats(current_user)
+    return StreakResponse(**stats)
 

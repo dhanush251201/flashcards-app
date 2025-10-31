@@ -81,3 +81,10 @@ export type DueReviewCard = {
   easiness: number;
 };
 
+export type StreakData = {
+  current_streak: number;
+  longest_streak: number;
+  last_activity_date: string | null;
+  is_active: boolean;
+};
+

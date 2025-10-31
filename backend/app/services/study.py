@@ -9,6 +9,7 @@ from sqlmodel import Session
 from ..models import Card, QuizResponse, QuizSession, SRSReview, User, UserDeckProgress
 from ..models.enums import CardType, QuizMode, QuizStatus
 from ..schemas.study import DueReviewCard, StudyAnswerCreate, StudySessionCreate
+from . import streak as streak_service
 
 
 def create_session(db: Session, user: User, payload: StudySessionCreate) -> QuizSession:
@@ -32,10 +33,14 @@ def get_session_or_404(db: Session, session_id: int, user: User) -> QuizSession:
     return session
 
 
-def finish_session(db: Session, session: QuizSession) -> QuizSession:
+def finish_session(db: Session, session: QuizSession, user: User) -> QuizSession:
     session.status = QuizStatus.COMPLETED
     session.ended_at = datetime.now(tz=timezone.utc)
     db.add(session)
+
+    # Update user's streak when they complete a session
+    streak_service.update_user_streak(db, user)
+
     db.commit()
     db.refresh(session)
     return session

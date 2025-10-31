@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum, func
+from sqlalchemy import Column, Date, DateTime, Enum, func
 from sqlmodel import Field, Relationship, SQLModel
 
 from .enums import UserRole
@@ -16,6 +16,11 @@ class User(SQLModel, table=True):
     full_name: Optional[str] = Field(default=None, nullable=True)
     role: UserRole = Field(default=UserRole.USER, sa_column=Column(Enum(UserRole, name="user_role")))
     is_active: bool = Field(default=True)
+
+    # Streak tracking fields
+    current_streak: int = Field(default=0)
+    longest_streak: int = Field(default=0)
+    last_activity_date: Optional[date] = Field(default=None, sa_column=Column(Date, nullable=True))
 
     created_at: datetime = Field(
         sa_column=Column(

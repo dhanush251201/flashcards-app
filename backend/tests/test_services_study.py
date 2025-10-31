@@ -329,8 +329,8 @@ class TestSessionManagement:
             get_session_or_404(db, quiz_session.id, admin_user)
         assert exc.value.status_code == 404
 
-    def test_finish_session(self, db: Session, quiz_session):
-        finished = finish_session(db, quiz_session)
+    def test_finish_session(self, db: Session, quiz_session, test_user):
+        finished = finish_session(db, quiz_session, test_user)
         assert finished.status == QuizStatus.COMPLETED
         assert finished.ended_at is not None
 
