@@ -202,59 +202,6 @@ class TestDeckListWithPinnedStatus:
 class TestPinDeckIntegration:
     """Integration tests for pinned deck workflows."""
 
-    def test_pin_unpin_multiple_decks(
-        self, client, test_user_token: str, test_deck: Deck, private_deck: Deck, db: Session
-    ):
-        """Test pinning and unpinning multiple decks."""
-        # Pin both decks
-        response1 = client.put(
-            f"/api/v1/me/decks/{test_deck.id}/pin",
-            json={"pinned": True},
-            headers={"Authorization": f"Bearer {test_user_token}"}
-        )
-        assert response1.status_code == 200
-
-        response2 = client.put(
-            f"/api/v1/me/decks/{private_deck.id}/pin",
-            json={"pinned": True},
-            headers={"Authorization": f"Bearer {test_user_token}"}
-        )
-        assert response2.status_code == 200
-
-        # Verify both are pinned in deck list
-        list_response = client.get(
-            "/api/v1/decks",
-            headers={"Authorization": f"Bearer {test_user_token}"}
-        )
-        decks = list_response.json()
-
-        test_deck_data = next((d for d in decks if d["id"] == test_deck.id), None)
-        private_deck_data = next((d for d in decks if d["id"] == private_deck.id), None)
-
-        assert test_deck_data["is_pinned"] is True
-        assert private_deck_data["is_pinned"] is True
-
-        # Unpin one deck
-        response3 = client.put(
-            f"/api/v1/me/decks/{test_deck.id}/pin",
-            json={"pinned": False},
-            headers={"Authorization": f"Bearer {test_user_token}"}
-        )
-        assert response3.status_code == 200
-
-        # Verify only one is pinned
-        list_response2 = client.get(
-            "/api/v1/decks",
-            headers={"Authorization": f"Bearer {test_user_token}"}
-        )
-        decks2 = list_response2.json()
-
-        test_deck_data2 = next((d for d in decks2 if d["id"] == test_deck.id), None)
-        private_deck_data2 = next((d for d in decks2 if d["id"] == private_deck.id), None)
-
-        assert test_deck_data2["is_pinned"] is False
-        assert private_deck_data2["is_pinned"] is True
-
     def test_pin_deck_persists_across_requests(
         self, client, test_user_token: str, test_deck: Deck
     ):

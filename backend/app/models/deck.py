@@ -44,10 +44,10 @@ class Deck(SQLModel, table=True):
     )
 
     owner: Optional["User"] = Relationship(back_populates="decks")
-    cards: list["Card"] = Relationship(back_populates="deck")
+    cards: list["Card"] = Relationship(back_populates="deck", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     tags: list["Tag"] = Relationship(back_populates="decks", link_model=DeckTagLink)
-    progresses: list["UserDeckProgress"] = Relationship(back_populates="deck")
-    quiz_sessions: list["QuizSession"] = Relationship(back_populates="deck")
+    progresses: list["UserDeckProgress"] = Relationship(back_populates="deck", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    quiz_sessions: list["QuizSession"] = Relationship(back_populates="deck", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
 from .card import Card  # noqa: E402

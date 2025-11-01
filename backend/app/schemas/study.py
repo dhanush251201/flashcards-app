@@ -61,3 +61,10 @@ class DueReviewCard(BaseModel):
     repetitions: int
     interval_days: int
     easiness: float
+
+
+class SessionStatistics(BaseModel):
+    total_responses: int
+    correct_count: int
+    incorrect_count: int
+    unanswered_count: int

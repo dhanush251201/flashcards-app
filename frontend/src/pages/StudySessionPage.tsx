@@ -5,7 +5,7 @@ import { ArrowLeftIcon, ArrowRightIcon, PauseIcon, PlayIcon } from "@heroicons/r
 
 import { Flashcard } from "@/components/cards/Flashcard";
 import { apiClient } from "@/lib/apiClient";
-import type { Card, DeckDetail, StudyResponse, StudySession } from "@/types/api";
+import type { Card, DeckDetail, SessionStatistics, StudyResponse, StudySession } from "@/types/api";
 
 type AnswerMutationVariables = {
   cardId: number;
@@ -14,6 +14,16 @@ type AnswerMutationVariables = {
 };
 
 const normalize = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
+
+// Fisher-Yates shuffle algorithm
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
 
 export const StudySessionPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -26,6 +36,8 @@ export const StudySessionPage = () => {
   const [userAnswer, setUserAnswer] = useState<string | null>(null);
   const [shortAnswerInput, setShortAnswerInput] = useState("");
   const [clozeAnswers, setClozeAnswers] = useState<string[]>([]);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [shuffledCards, setShuffledCards] = useState<Card[]>([]);
 
   const sessionQuery = useQuery({
     queryKey: ["session", sessionId],
@@ -59,6 +71,16 @@ export const StudySessionPage = () => {
     }
   });
 
+  const statisticsMutation = useMutation<SessionStatistics>({
+    mutationFn: async () => {
+      const { data } = await apiClient.get<SessionStatistics>(`/study/sessions/${sessionId}/statistics`);
+      return data;
+    },
+    onSuccess: () => {
+      setShowSummaryModal(true);
+    }
+  });
+
   const finishMutation = useMutation<StudySession>({
     mutationFn: async () => {
       const { data } = await apiClient.post<StudySession>(`/study/sessions/${sessionId}/finish`);
@@ -66,15 +88,23 @@ export const StudySessionPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
-      navigate("/app/dashboard");
     }
   });
 
-  const cards: Card[] = deckQuery.data?.cards ?? [];
+  const cards: Card[] = shuffledCards.length > 0 ? shuffledCards : deckQuery.data?.cards ?? [];
   const currentCard = cards[cardIndex];
 
   const sessionMode = sessionQuery.data?.mode ?? "review";
   const isReviewMode = sessionMode === "review";
+  const isPracticeMode = sessionMode === "practice";
+  const isEndless = sessionQuery.data?.config?.endless ?? false;
+
+  // Shuffle cards for practice mode on initial load
+  useEffect(() => {
+    if (isPracticeMode && deckQuery.data?.cards && shuffledCards.length === 0) {
+      setShuffledCards(shuffleArray(deckQuery.data.cards));
+    }
+  }, [isPracticeMode, deckQuery.data?.cards, shuffledCards.length]);
 
   const multipleChoiceOptions = useMemo(() => {
     if (!currentCard || currentCard.type !== "multiple_choice") {
@@ -192,11 +222,41 @@ export const StudySessionPage = () => {
     setShortAnswerInput("");
     setClozeAnswers([]);
 
-    if (cardIndex >= cards.length - 1) {
+    // For practice mode, loop cards infinitely
+    if (isPracticeMode && isEndless) {
+      if (cardIndex >= cards.length - 1) {
+        // Reshuffle and restart
+        setShuffledCards(shuffleArray(cards));
+        setCardIndex(0);
+      } else {
+        setCardIndex((prev) => prev + 1);
+      }
+    } else {
+      // For other modes, finish when reaching the end
+      if (cardIndex >= cards.length - 1) {
+        await finishMutation.mutateAsync();
+        navigate("/app/dashboard");
+      } else {
+        setCardIndex((prev) => Math.min(prev + 1, cards.length - 1));
+      }
+    }
+  };
+
+  const handleEndSession = async () => {
+    if (isPracticeMode) {
+      // Fetch statistics first
+      await statisticsMutation.mutateAsync();
+      // Then finish the session
       await finishMutation.mutateAsync();
     } else {
-      setCardIndex((prev) => Math.min(prev + 1, cards.length - 1));
+      await finishMutation.mutateAsync();
+      navigate("/app/dashboard");
     }
+  };
+
+  const handleCloseSummary = () => {
+    setShowSummaryModal(false);
+    navigate("/app/dashboard");
   };
 
   if (sessionQuery.isLoading || deckQuery.isLoading) {
@@ -246,10 +306,11 @@ export const StudySessionPage = () => {
           </button>
           <button
             type="button"
-            onClick={() => finishMutation.mutateAsync()}
-            className="rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-300"
+            onClick={handleEndSession}
+            disabled={statisticsMutation.isPending || finishMutation.isPending}
+            className="rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-300 disabled:opacity-50"
           >
-            End session
+            {statisticsMutation.isPending || finishMutation.isPending ? "Ending..." : "End session"}
           </button>
         </div>
       </header>
@@ -474,6 +535,72 @@ export const StudySessionPage = () => {
           </div>
         </div>
       </div>
+
+      {showSummaryModal && statisticsMutation.data && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl dark:bg-slate-900">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-brand-500/10 dark:bg-brand-500/20">
+                <span className="text-3xl">🎯</span>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Session Complete!</h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Great work! Here's how you did:
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Correct Answers</span>
+                  <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {statisticsMutation.data.correct_count}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-rose-50 p-4 dark:bg-rose-900/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-rose-900 dark:text-rose-100">Incorrect Answers</span>
+                  <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+                    {statisticsMutation.data.incorrect_count}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Total Questions</span>
+                  <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    {statisticsMutation.data.total_responses}
+                  </span>
+                </div>
+              </div>
+
+              {statisticsMutation.data.total_responses > 0 && (
+                <div className="rounded-2xl border-2 border-brand-200 bg-brand-50/50 p-4 dark:border-brand-500/30 dark:bg-brand-900/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-brand-900 dark:text-brand-100">Accuracy</span>
+                    <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
+                      {Math.round((statisticsMutation.data.correct_count / statisticsMutation.data.total_responses) * 100)}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={handleCloseSummary}
+                className="rounded-full bg-brand-500 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/30 transition hover:bg-brand-600"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

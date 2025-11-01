@@ -224,3 +224,119 @@ class TestDueReviews:
     def test_due_reviews_no_auth(self, client: TestClient):
         response = client.get("/api/v1/study/reviews/due")
         assert response.status_code == 401
+
+
+@pytest.mark.integration
+class TestPracticeModeEndless:
+    """Test practice mode with endless configuration."""
+
+    def test_start_practice_session_endless(self, client: TestClient, test_deck, test_user_token, test_cards):
+        payload = {
+            "deck_id": test_deck.id,
+            "mode": "practice",
+            "config": {"endless": True}
+        }
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["mode"] == "practice"
+        assert data["config"]["endless"] is True
+
+
+@pytest.mark.integration
+class TestSessionStatistics:
+    """Test GET /api/v1/study/sessions/{session_id}/statistics endpoint."""
+
+    def test_get_session_statistics_empty(self, client: TestClient, quiz_session, test_user_token):
+        response = client.get(
+            f"/api/v1/study/sessions/{quiz_session.id}/statistics",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_responses"] == 0
+        assert data["correct_count"] == 0
+        assert data["incorrect_count"] == 0
+        assert data["unanswered_count"] == 0
+
+    def test_get_session_statistics_with_responses(self, client: TestClient, quiz_session, test_cards, test_user_token, db):
+        from app.models import QuizResponse
+
+        # Add some quiz responses
+        responses = [
+            QuizResponse(session_id=quiz_session.id, card_id=test_cards[0].id, is_correct=True),
+            QuizResponse(session_id=quiz_session.id, card_id=test_cards[1].id, is_correct=False),
+            QuizResponse(session_id=quiz_session.id, card_id=test_cards[2].id, is_correct=True),
+            QuizResponse(session_id=quiz_session.id, card_id=test_cards[0].id, is_correct=None),
+        ]
+        for r in responses:
+            db.add(r)
+        db.commit()
+
+        response = client.get(
+            f"/api/v1/study/sessions/{quiz_session.id}/statistics",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_responses"] == 4
+        assert data["correct_count"] == 2
+        assert data["incorrect_count"] == 1
+        assert data["unanswered_count"] == 1
+
+    def test_get_session_statistics_not_owner(self, client: TestClient, quiz_session, admin_user_token):
+        response = client.get(
+            f"/api/v1/study/sessions/{quiz_session.id}/statistics",
+            headers={"Authorization": f"Bearer {admin_user_token}"},
+        )
+        assert response.status_code == 404
+
+    def test_get_session_statistics_no_auth(self, client: TestClient, quiz_session):
+        response = client.get(f"/api/v1/study/sessions/{quiz_session.id}/statistics")
+        assert response.status_code == 401
+
+    def test_session_statistics_practice_mode(self, client: TestClient, test_deck, test_user_token, test_cards):
+        """Test that practice mode auto-grades correctly and statistics reflect that."""
+        # Create practice session
+        payload = {"deck_id": test_deck.id, "mode": "practice", "config": {"endless": True}}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Submit correct answer for multiple choice
+        card = test_cards[0]  # Multiple choice: 2+2=4
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": card.id, "user_answer": "4"},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_correct"] is True
+
+        # Submit incorrect answer
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": card.id, "user_answer": "5"},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_correct"] is False
+
+        # Check statistics
+        response = client.get(
+            f"/api/v1/study/sessions/{session_id}/statistics",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_responses"] == 2
+        assert data["correct_count"] == 1
+        assert data["incorrect_count"] == 1

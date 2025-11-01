@@ -32,6 +32,7 @@ export type DeckSummary = {
   card_count: number;
   due_count: number;
   tags: Tag[];
+  is_pinned: boolean;
 };
 
 export type DeckDetail = {
@@ -86,5 +87,12 @@ export type StreakData = {
   longest_streak: number;
   last_activity_date: string | null;
   is_active: boolean;
+};
+
+export type SessionStatistics = {
+  total_responses: number;
+  correct_count: number;
+  incorrect_count: number;
+  unanswered_count: number;
 };
 

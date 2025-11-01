@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..models.enums import CardType
 
@@ -29,11 +29,10 @@ class CardUpdate(BaseModel):
 
 
 class CardRead(CardBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     deck_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 

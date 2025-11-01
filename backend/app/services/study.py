@@ -247,3 +247,30 @@ def due_reviews(db: Session, user: User) -> List[DueReviewCard]:
             )
         )
     return results
+
+
+def get_session_statistics(db: Session, session: QuizSession) -> dict:
+    """
+    Get statistics for a quiz session.
+
+    Returns:
+        dict with total_responses, correct_count, incorrect_count, unanswered_count
+    """
+    from sqlalchemy import func as sql_func, case
+
+    # Query counts directly from database to avoid SQLAlchemy mapper cache issues
+    result = db.exec(
+        select(
+            sql_func.count().label("total"),
+            sql_func.sum(case((QuizResponse.is_correct == True, 1), else_=0)).label("correct"),
+            sql_func.sum(case((QuizResponse.is_correct == False, 1), else_=0)).label("incorrect"),
+            sql_func.sum(case((QuizResponse.is_correct == None, 1), else_=0)).label("unanswered"),
+        ).where(QuizResponse.session_id == session.id)
+    ).first()
+
+    return {
+        "total_responses": result.total or 0,
+        "correct_count": result.correct or 0,
+        "incorrect_count": result.incorrect or 0,
+        "unanswered_count": result.unanswered or 0,
+    }

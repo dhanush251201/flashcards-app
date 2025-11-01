@@ -41,6 +41,7 @@ class DeckSummary(BaseModel):
     card_count: int
     due_count: int
     tags: List[TagRead]
+    is_pinned: bool = False
 
 
 class DeckRead(DeckBase):

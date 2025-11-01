@@ -72,7 +72,9 @@ def toggle_pin_deck(
         progress = UserDeckProgress(user_id=current_user.id, deck_id=deck_id, percent_complete=0.0)
         db.add(progress)
     progress.pinned = payload.pinned
+    db.add(progress)
     db.commit()
+    db.refresh(progress)
     return Message(message="Deck pin updated")
 
 

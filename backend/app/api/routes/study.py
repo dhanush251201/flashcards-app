@@ -7,6 +7,7 @@ from ...models import Card, QuizSession, User
 from ...schemas.common import Message
 from ...schemas.study import (
     DueReviewCard,
+    SessionStatistics,
     StudyAnswerCreate,
     StudyAnswerRead,
     StudySessionCreate,
@@ -62,6 +63,17 @@ def finish_session(
     session = study_service.get_session_or_404(db, session_id, current_user)
     session = study_service.finish_session(db, session, current_user)
     return StudySessionRead.model_validate(session)
+
+
+@router.get("/sessions/{session_id}/statistics", response_model=SessionStatistics)
+def get_session_statistics(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> SessionStatistics:
+    session = study_service.get_session_or_404(db, session_id, current_user)
+    stats = study_service.get_session_statistics(db, session)
+    return SessionStatistics(**stats)
 
 
 @router.get("/reviews/due", response_model=list[DueReviewCard])

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum, Float, Integer, JSON, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, Integer, JSON, UniqueConstraint, func
 from sqlmodel import Field, Relationship, SQLModel
 
 from .enums import QuizMode, QuizStatus
@@ -31,7 +31,7 @@ class UserDeckProgress(SQLModel, table=True):
     percent_complete: float = Field(default=0.0)
     last_studied_at: datetime | None = Field(default=None, nullable=True)
     streak: int = Field(default=0)
-    pinned: bool = Field(default=False)
+    pinned: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default='0'))
 
     created_at: datetime = Field(
         sa_column=Column(
@@ -83,7 +83,7 @@ class QuizResponse(SQLModel, table=True):
     session_id: int = Field(foreign_key="quiz_sessions.id", nullable=False, index=True)
     card_id: int = Field(foreign_key="cards.id", nullable=False, index=True)
     user_answer: str | None = Field(default=None)
-    is_correct: bool | None = Field(default=None)
+    is_correct: Optional[bool] = Field(default=None, sa_column=Column(Boolean, nullable=True))
     quality: int | None = Field(default=None)
 
     responded_at: datetime = Field(

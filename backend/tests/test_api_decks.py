@@ -191,6 +191,72 @@ class TestDeleteDeck:
         response = client.delete(f"/api/v1/decks/{test_deck.id}")
         assert response.status_code == 401
 
+    def test_delete_deck_nonexistent(self, client: TestClient, test_user_token):
+        response = client.delete(
+            "/api/v1/decks/99999",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 404
+
+    def test_delete_deck_not_owner_not_admin(self, client: TestClient, db: Session, test_user_token):
+        # Create a deck owned by a different user
+        other_user = User(email="other@example.com", hashed_password="hashed", full_name="Other User")
+        db.add(other_user)
+        db.commit()
+        db.refresh(other_user)
+
+        deck = Deck(
+            title="Someone Else's Deck",
+            description="Not yours",
+            is_public=True,
+            owner_user_id=other_user.id,
+        )
+        db.add(deck)
+        db.commit()
+        db.refresh(deck)
+
+        response = client.delete(
+            f"/api/v1/decks/{deck.id}",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 403
+
+    def test_delete_deck_with_cards(self, client: TestClient, db: Session, test_user: User, test_user_token):
+        # Create a deck with cards
+        deck = Deck(
+            title="Deck with Cards",
+            description="Has cards",
+            is_public=True,
+            owner_user_id=test_user.id,
+        )
+        db.add(deck)
+        db.commit()
+        db.refresh(deck)
+
+        # Add some cards
+        card1 = Card(deck_id=deck.id, type="basic", prompt="Q1", answer="A1")
+        card2 = Card(deck_id=deck.id, type="basic", prompt="Q2", answer="A2")
+        db.add(card1)
+        db.add(card2)
+        db.commit()
+
+        # Delete the deck
+        response = client.delete(
+            f"/api/v1/decks/{deck.id}",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+
+        # Verify deck is deleted
+        deleted_deck = db.get(Deck, deck.id)
+        assert deleted_deck is None
+
+        # Verify cards are also deleted (cascade)
+        deleted_card1 = db.get(Card, card1.id)
+        deleted_card2 = db.get(Card, card2.id)
+        assert deleted_card1 is None
+        assert deleted_card2 is None
+
 
 @pytest.mark.integration
 class TestAddCard:

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from pydantic import ConfigDict
 from sqlalchemy import ARRAY, JSON, Column, DateTime, Enum, Text, func
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -17,6 +18,7 @@ card_type_enum = Enum(
 
 class Card(SQLModel, table=True):
     __tablename__ = "cards"
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     deck_id: int = Field(foreign_key="decks.id", nullable=False, index=True)
@@ -32,9 +34,6 @@ class Card(SQLModel, table=True):
         default=None,
         sa_column=Column(JSON, nullable=True),
     )
-
-    class Config:
-        arbitrary_types_allowed = True
 
     created_at: datetime = Field(
         sa_column=Column(

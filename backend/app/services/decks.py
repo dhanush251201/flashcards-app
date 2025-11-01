@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session
 
-from ..models import Card, CardType, Deck, DeckTagLink, SRSReview, Tag, User
+from ..models import Card, CardType, Deck, DeckTagLink, SRSReview, Tag, User, UserDeckProgress
 from ..schemas.card import CardCreate, CardUpdate
 from ..schemas.deck import DeckCreate, DeckRead, DeckSummary, DeckUpdate, TagRead
 
@@ -106,6 +106,7 @@ def list_decks(
     for deck in decks:
         tag_reads = [TagRead(id=t.id, name=t.name) for t in deck.tags]
         due_count = 0
+        is_pinned = False
         if user:
             due_count = (
                 db.exec(
@@ -118,6 +119,16 @@ def list_decks(
                     )
                 ).scalar_one()
             )
+            # Check if deck is pinned by user
+            # Use COALESCE to handle NULL/missing values
+            pinned_result = db.exec(
+                select(func.coalesce(UserDeckProgress.pinned, False)).where(
+                    UserDeckProgress.user_id == user.id,
+                    UserDeckProgress.deck_id == deck.id,
+                )
+            ).first()
+            # Convert result to boolean (handles None, 0, False, 1, True)
+            is_pinned = bool(pinned_result) if pinned_result is not None and pinned_result != 0 else False
         summaries.append(
             DeckSummary(
                 id=deck.id,
@@ -127,6 +138,7 @@ def list_decks(
                 card_count=len(deck.cards),
                 due_count=due_count,
                 tags=tag_reads,
+                is_pinned=is_pinned,
             )
         )
     return summaries, total

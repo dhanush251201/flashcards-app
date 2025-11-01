@@ -83,6 +83,7 @@ export const DeckDetailPage = () => {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [isCardModalOpen, setCardModalOpen] = useState(false);
+  const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
   const [cardFormError, setCardFormError] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<CardModel | null>(null);
   const [cardForm, setCardForm] = useState({
@@ -164,6 +165,16 @@ export const DeckDetailPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deck", deckId] });
+    }
+  });
+
+  const deleteDeckMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.delete(`/decks/${deckId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["decks"] });
+      navigate("/app/dashboard");
     }
   });
 
@@ -280,16 +291,25 @@ export const DeckDetailPage = () => {
             <p className="text-xs text-slate-400">
               Created {new Date(deck.created_at).toLocaleDateString()} • Last updated {new Date(deck.updated_at).toLocaleDateString()}
             </p>
+            {deck.owner_user_id === user?.id && (
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(true)}
+                className="mt-2 inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
+              >
+                Delete Deck
+              </button>
+            )}
           </div>
-          <div className="flex flex-col gap-4 rounded-3xl bg-slate-100/80 p-6 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 rounded-3xl bg-slate-100/80 p-6 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 min-w-[280px]">
+            <div className="flex items-center justify-between gap-4">
               <span>Total cards</span>
               <span className="text-lg font-semibold text-brand-600 dark:text-brand-300">{cardStats.total}</span>
             </div>
             {Object.entries(cardStats.types).map(([type, count]) => (
-              <div key={type} className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
-                <span>{type.replace("_", " ")}</span>
-                <span className="font-semibold text-slate-600 dark:text-slate-200">{count}</span>
+              <div key={type} className="flex items-center justify-between gap-6 text-xs uppercase tracking-wide text-slate-400">
+                <span className="flex-1">{type.replace("_", " ")}</span>
+                <span className="font-semibold text-slate-600 dark:text-slate-200 flex-shrink-0">{count}</span>
               </div>
             ))}
             <div className="mt-2 rounded-2xl bg-white/70 p-4 text-xs text-slate-500 shadow-sm dark:bg-slate-900/80 dark:text-slate-300">
@@ -569,6 +589,45 @@ export const DeckDetailPage = () => {
           </div>
         </div>
       ) : null}
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Delete Deck</h3>
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+              Are you sure you want to delete <span className="font-semibold text-slate-900 dark:text-white">"{deck?.title}"</span>?
+            </p>
+            <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+              This action cannot be undone. All cards in this deck will be permanently deleted.
+            </p>
+
+            {deleteDeckMutation.isError && (
+              <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
+                Failed to delete the deck. Please try again.
+              </p>
+            )}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deleteDeckMutation.isPending}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteDeckMutation.mutate()}
+                disabled={deleteDeckMutation.isPending}
+                className="rounded-full bg-rose-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {deleteDeckMutation.isPending ? "Deleting..." : "Delete Deck"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

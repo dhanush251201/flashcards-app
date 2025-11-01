@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures for backend tests."""
 import datetime as dt
+import warnings
 from typing import Generator
 
 import pytest
@@ -10,8 +11,12 @@ from sqlmodel.pool import StaticPool
 from app.services.auth import create_access_token, hash_password
 from app.db.session import get_db
 from app.main import app
-from app.models import Card, Deck, QuizSession, SRSReview, User
+from app.models import Card, Deck, QuizResponse, QuizSession, SRSReview, User, UserDeckProgress
 from app.models.enums import CardType, QuizMode, QuizStatus, UserRole
+
+# Suppress resource warnings globally
+warnings.filterwarnings("ignore", category=ResourceWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 @pytest.fixture(name="engine")

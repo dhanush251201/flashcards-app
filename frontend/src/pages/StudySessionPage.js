@@ -6,6 +6,15 @@ import { ArrowLeftIcon, ArrowRightIcon, PauseIcon, PlayIcon } from "@heroicons/r
 import { Flashcard } from "@/components/cards/Flashcard";
 import { apiClient } from "@/lib/apiClient";
 const normalize = (value) => (value ?? "").trim().toLowerCase();
+// Fisher-Yates shuffle algorithm
+const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+};
 export const StudySessionPage = () => {
     const { sessionId } = useParams();
     const navigate = useNavigate();
@@ -16,6 +25,8 @@ export const StudySessionPage = () => {
     const [userAnswer, setUserAnswer] = useState(null);
     const [shortAnswerInput, setShortAnswerInput] = useState("");
     const [clozeAnswers, setClozeAnswers] = useState([]);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [shuffledCards, setShuffledCards] = useState([]);
     const sessionQuery = useQuery({
         queryKey: ["session", sessionId],
         queryFn: async () => {
@@ -45,6 +56,15 @@ export const StudySessionPage = () => {
             queryClient.invalidateQueries({ queryKey: ["due-review"] });
         }
     });
+    const statisticsMutation = useMutation({
+        mutationFn: async () => {
+            const { data } = await apiClient.get(`/study/sessions/${sessionId}/statistics`);
+            return data;
+        },
+        onSuccess: () => {
+            setShowSummaryModal(true);
+        }
+    });
     const finishMutation = useMutation({
         mutationFn: async () => {
             const { data } = await apiClient.post(`/study/sessions/${sessionId}/finish`);
@@ -52,13 +72,20 @@ export const StudySessionPage = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
-            navigate("/app/dashboard");
         }
     });
-    const cards = deckQuery.data?.cards ?? [];
+    const cards = shuffledCards.length > 0 ? shuffledCards : deckQuery.data?.cards ?? [];
     const currentCard = cards[cardIndex];
     const sessionMode = sessionQuery.data?.mode ?? "review";
     const isReviewMode = sessionMode === "review";
+    const isPracticeMode = sessionMode === "practice";
+    const isEndless = sessionQuery.data?.config?.endless ?? false;
+    // Shuffle cards for practice mode on initial load
+    useEffect(() => {
+        if (isPracticeMode && deckQuery.data?.cards && shuffledCards.length === 0) {
+            setShuffledCards(shuffleArray(deckQuery.data.cards));
+        }
+    }, [isPracticeMode, deckQuery.data?.cards, shuffledCards.length]);
     const multipleChoiceOptions = useMemo(() => {
         if (!currentCard || currentCard.type !== "multiple_choice") {
             return [];
@@ -166,12 +193,43 @@ export const StudySessionPage = () => {
         setUserAnswer(null);
         setShortAnswerInput("");
         setClozeAnswers([]);
-        if (cardIndex >= cards.length - 1) {
+        // For practice mode, loop cards infinitely
+        if (isPracticeMode && isEndless) {
+            if (cardIndex >= cards.length - 1) {
+                // Reshuffle and restart
+                setShuffledCards(shuffleArray(cards));
+                setCardIndex(0);
+            }
+            else {
+                setCardIndex((prev) => prev + 1);
+            }
+        }
+        else {
+            // For other modes, finish when reaching the end
+            if (cardIndex >= cards.length - 1) {
+                await finishMutation.mutateAsync();
+                navigate("/app/dashboard");
+            }
+            else {
+                setCardIndex((prev) => Math.min(prev + 1, cards.length - 1));
+            }
+        }
+    };
+    const handleEndSession = async () => {
+        if (isPracticeMode) {
+            // Fetch statistics first
+            await statisticsMutation.mutateAsync();
+            // Then finish the session
             await finishMutation.mutateAsync();
         }
         else {
-            setCardIndex((prev) => Math.min(prev + 1, cards.length - 1));
+            await finishMutation.mutateAsync();
+            navigate("/app/dashboard");
         }
+    };
+    const handleCloseSummary = () => {
+        setShowSummaryModal(false);
+        navigate("/app/dashboard");
     };
     if (sessionQuery.isLoading || deckQuery.isLoading) {
         return (_jsx("div", { className: "flex h-72 items-center justify-center", children: _jsx("div", { className: "size-10 animate-spin rounded-full border-4 border-slate-300 border-t-brand-500 dark:border-slate-700 dark:border-t-brand-300" }) }));
@@ -181,7 +239,7 @@ export const StudySessionPage = () => {
     }
     return (_jsxs("div", { className: "space-y-8", children: [_jsxs("header", { className: "flex flex-wrap items-center justify-between gap-4", children: [_jsxs("div", { children: [_jsx("p", { className: "text-xs uppercase tracking-wide text-slate-400", children: "Study session" }), _jsx("h1", { className: "text-2xl font-semibold text-slate-900 dark:text-white", children: deckQuery.data?.title }), _jsxs("p", { className: "text-sm text-slate-500 dark:text-slate-300", children: ["Card ", cardIndex + 1, " of ", cards.length] })] }), _jsxs("div", { className: "flex items-center gap-3", children: [_jsxs("button", { type: "button", onClick: () => setIsAutoFlip((prev) => !prev), className: `flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${isAutoFlip
                                     ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                                    : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900"}`, children: [isAutoFlip ? _jsx(PauseIcon, { className: "size-4" }) : _jsx(PlayIcon, { className: "size-4" }), " Auto flip"] }), _jsx("button", { type: "button", onClick: () => finishMutation.mutateAsync(), className: "rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-300", children: "End session" })] })] }), _jsx("div", { className: "rounded-3xl bg-white p-8 shadow-card shadow-brand-500/15 dark:bg-slate-900", children: _jsxs("div", { className: "mx-auto max-w-2xl space-y-6", children: [!isCloze && (_jsx(Flashcard, { card: currentCard, flipped: flipped, onToggle: () => setFlipped((prev) => !prev) })), isMultipleChoice && (_jsxs("div", { className: "rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500", children: "Choose an answer" }), _jsx("div", { className: "mt-3 grid gap-2", children: multipleChoiceOptions.map((option, index) => {
+                                    : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900"}`, children: [isAutoFlip ? _jsx(PauseIcon, { className: "size-4" }) : _jsx(PlayIcon, { className: "size-4" }), " Auto flip"] }), _jsx("button", { type: "button", onClick: handleEndSession, disabled: statisticsMutation.isPending || finishMutation.isPending, className: "rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-300 disabled:opacity-50", children: statisticsMutation.isPending || finishMutation.isPending ? "Ending..." : "End session" })] })] }), _jsx("div", { className: "rounded-3xl bg-white p-8 shadow-card shadow-brand-500/15 dark:bg-slate-900", children: _jsxs("div", { className: "mx-auto max-w-2xl space-y-6", children: [!isCloze && (_jsx(Flashcard, { card: currentCard, flipped: flipped, onToggle: () => setFlipped((prev) => !prev) })), isMultipleChoice && (_jsxs("div", { className: "rounded-3xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500", children: "Choose an answer" }), _jsx("div", { className: "mt-3 grid gap-2", children: multipleChoiceOptions.map((option, index) => {
                                         const isSelected = userAnswer === option;
                                         return (_jsxs("button", { type: "button", onClick: () => handleSelectOption(option), className: `flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${isSelected
                                                 ? "border-brand-400 bg-white text-brand-700 shadow-sm dark:border-brand-500/60 dark:bg-slate-900 dark:text-brand-200"
@@ -219,5 +277,5 @@ export const StudySessionPage = () => {
                                             : "Hide answer"
                                         : isMultipleChoice || isShortAnswer || isCloze
                                             ? "Show explanation"
-                                            : "Reveal answer" }), _jsxs("div", { children: [cardIndex + 1, "/", cards.length] })] }), _jsxs("div", { className: "flex flex-col gap-3 rounded-3xl bg-slate-100/70 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between", children: [_jsx("p", { className: "text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400", children: "Progress" }), _jsx("div", { className: "flex items-center gap-3", children: _jsxs("button", { type: "button", onClick: handleNext, disabled: !readyForNext || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: [cardIndex === cards.length - 1 ? "Finish session" : "Next card", _jsx(ArrowRightIcon, { className: "size-4" })] }) })] })] }) })] }));
+                                            : "Reveal answer" }), _jsxs("div", { children: [cardIndex + 1, "/", cards.length] })] }), _jsxs("div", { className: "flex flex-col gap-3 rounded-3xl bg-slate-100/70 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between", children: [_jsx("p", { className: "text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400", children: "Progress" }), _jsx("div", { className: "flex items-center gap-3", children: _jsxs("button", { type: "button", onClick: handleNext, disabled: !readyForNext || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: [cardIndex === cards.length - 1 ? "Finish session" : "Next card", _jsx(ArrowRightIcon, { className: "size-4" })] }) })] })] }) }), showSummaryModal && statisticsMutation.data && (_jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4", children: _jsxs("div", { className: "w-full max-w-md rounded-3xl bg-white p-8 shadow-xl dark:bg-slate-900", children: [_jsxs("div", { className: "text-center", children: [_jsx("div", { className: "mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-brand-500/10 dark:bg-brand-500/20", children: _jsx("span", { className: "text-3xl", children: "\uD83C\uDFAF" }) }), _jsx("h2", { className: "text-2xl font-bold text-slate-900 dark:text-white", children: "Session Complete!" }), _jsx("p", { className: "mt-2 text-sm text-slate-500 dark:text-slate-400", children: "Great work! Here's how you did:" })] }), _jsxs("div", { className: "mt-6 space-y-4", children: [_jsx("div", { className: "rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-900/20", children: _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("span", { className: "text-sm font-medium text-emerald-900 dark:text-emerald-100", children: "Correct Answers" }), _jsx("span", { className: "text-2xl font-bold text-emerald-600 dark:text-emerald-400", children: statisticsMutation.data.correct_count })] }) }), _jsx("div", { className: "rounded-2xl bg-rose-50 p-4 dark:bg-rose-900/20", children: _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("span", { className: "text-sm font-medium text-rose-900 dark:text-rose-100", children: "Incorrect Answers" }), _jsx("span", { className: "text-2xl font-bold text-rose-600 dark:text-rose-400", children: statisticsMutation.data.incorrect_count })] }) }), _jsx("div", { className: "rounded-2xl bg-slate-100 p-4 dark:bg-slate-800", children: _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("span", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "Total Questions" }), _jsx("span", { className: "text-2xl font-bold text-slate-900 dark:text-slate-100", children: statisticsMutation.data.total_responses })] }) }), statisticsMutation.data.total_responses > 0 && (_jsx("div", { className: "rounded-2xl border-2 border-brand-200 bg-brand-50/50 p-4 dark:border-brand-500/30 dark:bg-brand-900/10", children: _jsxs("div", { className: "flex items-center justify-between", children: [_jsx("span", { className: "text-sm font-medium text-brand-900 dark:text-brand-100", children: "Accuracy" }), _jsxs("span", { className: "text-2xl font-bold text-brand-600 dark:text-brand-400", children: [Math.round((statisticsMutation.data.correct_count / statisticsMutation.data.total_responses) * 100), "%"] })] }) }))] }), _jsx("div", { className: "mt-8 flex justify-center", children: _jsx("button", { type: "button", onClick: handleCloseSummary, className: "rounded-full bg-brand-500 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/30 transition hover:bg-brand-600", children: "Return to Dashboard" }) })] }) }))] }));
 };
