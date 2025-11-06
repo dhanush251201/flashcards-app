@@ -2,6 +2,18 @@
 
 A modern, full‑stack flashcard web app for learning and spaced repetition. This README consolidates the product spec and fills gaps so you can build an end‑to‑end MVP with a clear roadmap.
 
+## 📚 Documentation
+
+### Quick Start
+- **[Quick Reference](QUICK_REFERENCE.md)** - 📄 One-page cheat sheet for AI deck generation
+- **[Complete Summary](AI_DECK_GENERATION_SUMMARY.md)** - 📋 Full feature overview and implementation details
+
+### Detailed Documentation
+- **[AI Flashcard Types](AI_FLASHCARD_TYPES.md)** - Documentation for AI-generated question types (Basic, Multiple Choice, Short Answer, Cloze)
+- **[API Documentation - AI Decks](API_DOCUMENTATION_AI_DECKS.md)** - Complete API reference for AI deck generation endpoints
+- **[Test Guide](TEST_GUIDE.md)** - How to run and understand test cases for AI deck generation
+- **[Recent Fixes](FIXES_APPLIED.md)** - Bug fixes and improvements to AI generation
+
 ---
 
 ## 1) What is a flashcard application?
@@ -433,3 +445,9 @@ The CI pipeline includes:
 See [TESTING.md](TESTING.md) for detailed testing documentation.
 
 ---
+
+
+
+
+
+

@@ -9,7 +9,7 @@ from ...api.deps import get_current_active_user
 from ...db.session import get_db
 from ...models import Deck, User, UserDeckProgress
 from ...schemas.common import Message
-from ...schemas.user import UserRead, UserUpdate
+from ...schemas.user import UserRead, UserUpdate, UserSettingsUpdate
 from ...services.auth import hash_password, verify_password
 from ...services import streak as streak_service
 
@@ -92,4 +92,35 @@ def get_user_streak(
     """Get the current user's streak statistics."""
     stats = streak_service.get_streak_stats(current_user)
     return StreakResponse(**stats)
+
+
+@router.put("/settings", response_model=UserRead)
+def update_llm_settings(
+    payload: UserSettingsUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Update user's LLM settings (API keys and provider preference)."""
+    # Update API key if provided
+    if payload.openai_api_key is not None:
+        # Empty string means remove the key
+        if payload.openai_api_key == "":
+            current_user.openai_api_key = None
+        else:
+            # Basic validation - OpenAI keys start with 'sk-'
+            if not payload.openai_api_key.startswith("sk-"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid OpenAI API key format. Keys should start with 'sk-'"
+                )
+            current_user.openai_api_key = payload.openai_api_key
+
+    # Update provider preference if provided
+    if payload.llm_provider_preference is not None:
+        current_user.llm_provider_preference = payload.llm_provider_preference
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 

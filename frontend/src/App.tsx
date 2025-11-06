@@ -8,6 +8,8 @@ import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { SignupPage } from "@/pages/SignupPage";
 import { StudySessionPage } from "@/pages/StudySessionPage";
+import AIPoweredDecksPage from "@/pages/AIPoweredDecksPage";
+import SettingsPage from "@/pages/SettingsPage";
 import { AppShell } from "@/components/layout/AppShell";
 
 const App = () => {
@@ -44,6 +46,22 @@ const App = () => {
               </AppShell>
             }
             path="study/:sessionId"
+          />
+          <Route
+            element={
+              <AppShell>
+                <AIPoweredDecksPage />
+              </AppShell>
+            }
+            path="ai-decks"
+          />
+          <Route
+            element={
+              <AppShell>
+                <SettingsPage />
+              </AppShell>
+            }
+            path="settings"
           />
           <Route path="" element={<Navigate to="/app/dashboard" replace />} />
         </Route>

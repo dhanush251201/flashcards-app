@@ -22,6 +22,10 @@ class User(SQLModel, table=True):
     longest_streak: int = Field(default=0)
     last_activity_date: Optional[date] = Field(default=None, sa_column=Column(Date, nullable=True))
 
+    # LLM settings for AI-powered deck generation
+    openai_api_key: Optional[str] = Field(default=None, nullable=True)
+    llm_provider_preference: Optional[str] = Field(default=None, nullable=True)  # "openai" or "ollama"
+
     created_at: datetime = Field(
         sa_column=Column(
             DateTime(timezone=True),

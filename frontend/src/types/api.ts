@@ -96,3 +96,49 @@ export type SessionStatistics = {
   unanswered_count: number;
 };
 
+export type User = {
+  id: number;
+  email: string;
+  full_name?: string | null;
+  role: "USER" | "ADMIN";
+  is_active: boolean;
+  current_streak: number;
+  longest_streak: number;
+  last_activity_date: string | null;
+  llm_provider_preference?: string | null;
+  has_openai_key: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserSettingsUpdate = {
+  openai_api_key?: string | null;
+  llm_provider_preference?: "openai" | "ollama" | null;
+};
+
+export type OllamaStatus = {
+  available: boolean;
+  message: string;
+};
+
+export type GeneratedCard = {
+  type: "basic" | "multiple_choice" | "short_answer" | "cloze";
+  prompt: string;
+  answer: string;
+  explanation?: string | null;
+  options?: string[] | null;  // For MULTIPLE_CHOICE
+  cloze_data?: ClozeData | null;  // For CLOZE type cards
+};
+
+export type GeneratedCardsResponse = {
+  cards: GeneratedCard[];
+  count: number;
+};
+
+export type CreateDeckFromCardsRequest = {
+  title: string;
+  description?: string;
+  tag_names?: string[];
+  cards: GeneratedCard[];
+};
+
