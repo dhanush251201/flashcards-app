@@ -40,6 +40,12 @@ export const StudySessionPage = () => {
   const [shuffledCards, setShuffledCards] = useState<Card[]>([]);
   const [llmFeedback, setLlmFeedback] = useState<string | null>(null);
 
+  // Exam mode state
+  const [examAnswers, setExamAnswers] = useState<Map<number, string>>(new Map());
+  const [examResults, setExamResults] = useState<Map<number, StudyResponse & { llm_feedback?: string }>>(new Map());
+  const [isSubmittingExam, setIsSubmittingExam] = useState(false);
+  const [showExamResults, setShowExamResults] = useState(false);
+
   const sessionQuery = useQuery({
     queryKey: ["session", sessionId],
     queryFn: async () => {
@@ -105,13 +111,32 @@ export const StudySessionPage = () => {
     }
   });
 
-  const cards: Card[] = shuffledCards.length > 0 ? shuffledCards : deckQuery.data?.cards ?? [];
-  const currentCard = cards[cardIndex];
-
   const sessionMode = sessionQuery.data?.mode ?? "review";
   const isReviewMode = sessionMode === "review";
   const isPracticeMode = sessionMode === "practice";
+  const isExamMode = sessionMode === "exam";
   const isEndless = sessionQuery.data?.config?.endless ?? false;
+
+  // Get cards with defensive filtering for exam mode
+  const cards: Card[] = useMemo(() => {
+    const baseCards = shuffledCards.length > 0 ? shuffledCards : deckQuery.data?.cards ?? [];
+
+    // In exam mode, always filter out basic cards as a safety measure
+    if (isExamMode) {
+      const filtered = baseCards.filter(
+        card => card.type === "multiple_choice" || card.type === "short_answer" || card.type === "cloze"
+      );
+      console.log("=== Defensive filter applied ===");
+      console.log("Base cards:", baseCards.length);
+      console.log("Filtered cards:", filtered.length);
+      console.log("Filtered types:", filtered.map(c => c.type));
+      return filtered;
+    }
+
+    return baseCards;
+  }, [shuffledCards, deckQuery.data?.cards, isExamMode]);
+
+  const currentCard = cards[cardIndex];
 
   // Shuffle cards for practice mode on initial load
   useEffect(() => {
@@ -119,6 +144,29 @@ export const StudySessionPage = () => {
       setShuffledCards(shuffleArray(deckQuery.data.cards));
     }
   }, [isPracticeMode, deckQuery.data?.cards, shuffledCards.length]);
+
+  // Filter and shuffle cards for exam mode - only include MCQ, short answer, and cloze questions
+  useEffect(() => {
+    if (isExamMode && deckQuery.data?.cards && shuffledCards.length === 0) {
+      console.log("=== Filtering cards for exam mode ===");
+      console.log("Total cards in deck:", deckQuery.data.cards.length);
+      console.log("Card types:", deckQuery.data.cards.map(c => ({ id: c.id, type: c.type })));
+
+      const examEligibleCards = deckQuery.data.cards.filter(
+        card => card.type === "multiple_choice" || card.type === "short_answer" || card.type === "cloze"
+      );
+
+      console.log("Exam eligible cards:", examEligibleCards.length);
+      console.log("Filtered card types:", examEligibleCards.map(c => ({ id: c.id, type: c.type })));
+
+      if (examEligibleCards.length === 0) {
+        console.warn("No exam-eligible questions found in this deck");
+      }
+
+      setShuffledCards(shuffleArray(examEligibleCards));
+      console.log("=== Exam cards filtered and shuffled ===");
+    }
+  }, [isExamMode, deckQuery.data?.cards, shuffledCards.length]);
 
   const multipleChoiceOptions = useMemo(() => {
     if (!currentCard || currentCard.type !== "multiple_choice") {
@@ -188,7 +236,18 @@ export const StudySessionPage = () => {
     if (answerMutation.isPending || !currentCard) return;
     setUserAnswer(option);
 
-    // In Practice/Exam modes, submit immediately for auto-grading
+    // In Exam mode, just store the answer and move to next question
+    if (isExamMode) {
+      console.log("Exam mode - storing MC answer locally");
+      setExamAnswers(prev => new Map(prev).set(currentCard.id, option));
+      // Auto-advance to next question after short delay
+      setTimeout(() => {
+        handleNextExamQuestion();
+      }, 500);
+      return;
+    }
+
+    // In Practice mode, submit immediately for auto-grading
     // In Review mode, wait for user to click Next and provide quality rating
     if (!isReviewMode) {
       const quality = deriveQuality();
@@ -206,11 +265,24 @@ export const StudySessionPage = () => {
     console.log("shortAnswerInput:", shortAnswerInput);
     console.log("currentCard:", currentCard?.id);
     console.log("isReviewMode:", isReviewMode);
+    console.log("isExamMode:", isExamMode);
 
     if (answerMutation.isPending || !shortAnswerInput.trim() || !currentCard) return;
     const answer = shortAnswerInput.trim();
 
-    // In Practice/Exam modes, submit immediately for LLM evaluation
+    // In Exam mode, just store the answer and move to next question
+    if (isExamMode) {
+      console.log("Exam mode - storing answer locally");
+      setUserAnswer(answer);
+      setExamAnswers(prev => new Map(prev).set(currentCard.id, answer));
+      // Auto-advance to next question after short delay
+      setTimeout(() => {
+        handleNextExamQuestion();
+      }, 500);
+      return;
+    }
+
+    // In Practice mode, submit immediately for LLM evaluation
     // In Review mode, set answer and wait for user to click Next
     if (!isReviewMode) {
       console.log("Calling API to submit answer immediately");
@@ -242,7 +314,19 @@ export const StudySessionPage = () => {
     console.log("Setting user answer:", answersJson);
     console.log("Current card cloze_data:", currentCard?.cloze_data);
 
-    // In Practice/Exam modes, submit immediately for LLM evaluation
+    // In Exam mode, just store the answer and move to next question
+    if (isExamMode) {
+      console.log("Exam mode - storing cloze answer locally");
+      setUserAnswer(answersJson);
+      setExamAnswers(prev => new Map(prev).set(currentCard.id, answersJson));
+      // Auto-advance to next question after short delay
+      setTimeout(() => {
+        handleNextExamQuestion();
+      }, 500);
+      return;
+    }
+
+    // In Practice mode, submit immediately for LLM evaluation
     // In Review mode, set answer and wait for user to click Next
     if (!isReviewMode) {
       const quality = deriveQuality();
@@ -331,12 +415,77 @@ export const StudySessionPage = () => {
     }
   };
 
+  const handleNextExamQuestion = () => {
+    // Clear current answer state
+    setFlipped(false);
+    setUserAnswer(null);
+    setShortAnswerInput("");
+    setClozeAnswers([]);
+    setLlmFeedback(null);
+
+    // Move to next question
+    if (cardIndex < cards.length - 1) {
+      setCardIndex((prev) => prev + 1);
+    }
+  };
+
+  const handleSubmitExam = async () => {
+    if (isSubmittingExam) return;
+
+    console.log("=== Submitting exam ===");
+    console.log("Total answers:", examAnswers.size);
+    console.log("Total cards:", cards.length);
+
+    setIsSubmittingExam(true);
+
+    try {
+      const results = new Map<number, StudyResponse & { llm_feedback?: string }>();
+
+      // Submit all answers sequentially to ensure proper processing
+      for (const card of cards) {
+        const userAnswer = examAnswers.get(card.id);
+        if (userAnswer !== undefined) {
+          console.log(`Submitting answer for card ${card.id}`);
+          const { data } = await apiClient.post<StudyResponse>(`/study/sessions/${sessionId}/answer`, {
+            card_id: card.id,
+            quality: null,
+            user_answer: userAnswer
+          });
+
+          // Store result with LLM feedback if available
+          results.set(card.id, {
+            ...data,
+            llm_feedback: (data as any).llm_feedback
+          });
+        }
+      }
+
+      console.log("All answers submitted, results:", results.size);
+      setExamResults(results);
+      setIsSubmittingExam(false);
+      setShowExamResults(true);
+
+      // Finish the session
+      await finishMutation.mutateAsync();
+    } catch (error) {
+      console.error("Error submitting exam:", error);
+      setIsSubmittingExam(false);
+      alert("Error submitting exam. Please try again.");
+    }
+  };
+
   const handleEndSession = async () => {
     if (isPracticeMode) {
       // Fetch statistics first
       await statisticsMutation.mutateAsync();
       // Then finish the session
       await finishMutation.mutateAsync();
+    } else if (isExamMode && examAnswers.size < cards.length) {
+      // If exam mode and not all questions answered, confirm exit
+      if (confirm("You haven't answered all questions. Are you sure you want to end the exam?")) {
+        await finishMutation.mutateAsync();
+        navigate("/app/dashboard");
+      }
     } else {
       await finishMutation.mutateAsync();
       navigate("/app/dashboard");
@@ -359,7 +508,21 @@ export const StudySessionPage = () => {
   if (!currentCard) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center text-sm text-slate-500 shadow-card dark:bg-slate-900">
-        <p>No cards available in this deck yet.</p>
+        {isExamMode ? (
+          <>
+            <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/20">
+              <svg className="size-8 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">No Exam Questions Available</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              This deck contains only basic flashcards. Exams require multiple choice, short answer, or cloze questions.
+            </p>
+          </>
+        ) : (
+          <p>No cards available in this deck yet.</p>
+        )}
         <button
           type="button"
           onClick={() => navigate(`/app/decks/${sessionQuery.data?.deck_id ?? ""}`)}
@@ -375,24 +538,28 @@ export const StudySessionPage = () => {
     <div className="space-y-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Study session</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            {isExamMode ? "Exam Session" : isPracticeMode ? "Practice Session" : "Study Session"}
+          </p>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{deckQuery.data?.title}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-300">
-            Card {cardIndex + 1} of {cards.length}
+            {isExamMode ? "Question" : "Card"} {cardIndex + 1} of {cards.length}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setIsAutoFlip((prev) => !prev)}
-            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
-              isAutoFlip
-                ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900"
-            }`}
-          >
-            {isAutoFlip ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />} Auto flip
-          </button>
+          {!isExamMode && (
+            <button
+              type="button"
+              onClick={() => setIsAutoFlip((prev) => !prev)}
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                isAutoFlip
+                  ? "border-brand-500 bg-brand-500/10 text-brand-600"
+                  : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900"
+              }`}
+            >
+              {isAutoFlip ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />} Auto flip
+            </button>
+          )}
           <button
             type="button"
             onClick={handleEndSession}
@@ -437,7 +604,7 @@ export const StudySessionPage = () => {
                 })}
               </div>
 
-              {userAnswer && (
+              {userAnswer && !isExamMode && (
                 <div
                   className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
                     selectedIsCorrect
@@ -446,6 +613,16 @@ export const StudySessionPage = () => {
                   }`}
                 >
                   {selectedIsCorrect ? "Great job! You picked the correct answer." : <span>Correct answer: {currentCard.answer}</span>}
+                </div>
+              )}
+              {userAnswer && isExamMode && (
+                <div className="mt-4 rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10">
+                  <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
+                    <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-medium">Answer recorded! Moving to next question...</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -482,7 +659,7 @@ export const StudySessionPage = () => {
                 )}
               </div>
 
-              {userAnswer && (
+              {userAnswer && !isExamMode && (
                 <div className="mt-4 space-y-2">
                   {/* Show loading state while mutation is pending */}
                   {answerMutation.isPending && !isReviewMode ? (
@@ -556,6 +733,16 @@ export const StudySessionPage = () => {
                   )}
                 </div>
               )}
+              {userAnswer && isExamMode && (
+                <div className="mt-4 rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10">
+                  <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
+                    <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-medium">Answer recorded! Moving to next question...</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -606,7 +793,7 @@ export const StudySessionPage = () => {
                   </div>
                 )}
 
-                {userAnswer ? (
+                {userAnswer && !isExamMode ? (
                   <div className="mt-4 space-y-2">
                     {/* Show loading state while mutation is pending */}
                     {answerMutation.isPending && !isReviewMode ? (
@@ -686,41 +873,86 @@ export const StudySessionPage = () => {
                     )}
                   </div>
                 ) : null}
+                {userAnswer && isExamMode && (
+                  <div className="mt-4 rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10">
+                    <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">Answer recorded! Moving to next question...</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <button
-              type="button"
-              onClick={() => setFlipped((prev) => !prev)}
-              className="text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300"
-            >
-              {flipped
-                ? isMultipleChoice || isShortAnswer || isCloze
-                  ? "Hide explanation"
-                  : "Hide answer"
-                : isMultipleChoice || isShortAnswer || isCloze
-                  ? "Show explanation"
-                  : "Reveal answer"}
-            </button>
-            <div>
-              {cardIndex + 1}/{cards.length}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 rounded-3xl bg-slate-100/70 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</p>
-            <div className="flex items-center gap-3">
+          {!isExamMode && (
+            <div className="flex items-center justify-between text-xs text-slate-400">
               <button
                 type="button"
-                onClick={handleNext}
-                disabled={!readyForNext || answerMutation.isPending}
-                className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => setFlipped((prev) => !prev)}
+                className="text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300"
               >
-                {cardIndex === cards.length - 1 ? "Finish session" : "Next card"}
-                <ArrowRightIcon className="size-4" />
+                {flipped
+                  ? isMultipleChoice || isShortAnswer || isCloze
+                    ? "Hide explanation"
+                    : "Hide answer"
+                  : isMultipleChoice || isShortAnswer || isCloze
+                    ? "Show explanation"
+                    : "Reveal answer"}
               </button>
+              <div>
+                {cardIndex + 1}/{cards.length}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 rounded-3xl bg-slate-100/70 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</p>
+              {isExamMode && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Answered: {examAnswers.size} / {cards.length}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {isExamMode ? (
+                <>
+                  {cardIndex < cards.length - 1 && !userAnswer && (
+                    <button
+                      type="button"
+                      onClick={handleNextExamQuestion}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Skip Question
+                      <ArrowRightIcon className="size-4" />
+                    </button>
+                  )}
+                  {examAnswers.size === cards.length && (
+                    <button
+                      type="button"
+                      onClick={handleSubmitExam}
+                      disabled={isSubmittingExam}
+                      className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSubmittingExam ? "Submitting..." : "Submit Exam"}
+                      <ArrowRightIcon className="size-4" />
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!readyForNext || answerMutation.isPending}
+                  className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {cardIndex === cards.length - 1 ? "Finish session" : "Next card"}
+                  <ArrowRightIcon className="size-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -783,6 +1015,150 @@ export const StudySessionPage = () => {
               <button
                 type="button"
                 onClick={handleCloseSummary}
+                className="rounded-full bg-brand-500 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/30 transition hover:bg-brand-600"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Grading Loading Screen */}
+      {isSubmittingExam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-12 shadow-xl dark:bg-slate-900 text-center">
+            <div className="mx-auto mb-6 flex size-20 items-center justify-center">
+              <svg className="size-20 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">AI is checking your answers</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              This may take a few moments. Please wait while we grade your exam...
+            </p>
+            <div className="mt-6 text-sm text-slate-500 dark:text-slate-400">
+              Processing {examAnswers.size} answers
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exam Results Modal */}
+      {showExamResults && examResults.size > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-4xl rounded-3xl bg-white p-8 shadow-xl dark:bg-slate-900 my-8">
+            <div className="text-center mb-8">
+              <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-brand-500/10 dark:bg-brand-500/20">
+                <span className="text-3xl">🎯</span>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Exam Complete!</h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Here are your results
+              </p>
+            </div>
+
+            {/* Score Summary */}
+            <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    {Array.from(examResults.values()).filter(r => r.is_correct === true).length}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Correct</div>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    {Array.from(examResults.values()).filter(r => r.is_correct === false).length}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">Incorrect</div>
+                </div>
+              </div>
+              <div className="rounded-2xl border-2 border-brand-200 bg-brand-50/50 p-4 dark:border-brand-500/30 dark:bg-brand-900/10">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">
+                    {Math.round((Array.from(examResults.values()).filter(r => r.is_correct === true).length / examResults.size) * 100)}%
+                  </div>
+                  <div className="text-xs font-medium text-brand-600 dark:text-brand-400 mt-1">Score</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Detailed Results */}
+            <div className="space-y-4 max-h-96 overflow-y-auto mb-8">
+              {cards.map((card, idx) => {
+                const result = examResults.get(card.id);
+                const userAnswer = examAnswers.get(card.id);
+                if (!result) return null;
+
+                return (
+                  <div key={card.id} className={`rounded-2xl border p-4 ${
+                    result.is_correct
+                      ? "border-emerald-200 bg-emerald-50/30 dark:border-emerald-500/30 dark:bg-emerald-900/10"
+                      : "border-rose-200 bg-rose-50/30 dark:border-rose-500/30 dark:bg-rose-900/10"
+                  }`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            Question {idx + 1}
+                          </span>
+                          {result.llm_feedback && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-500/20 dark:text-purple-300">
+                              <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              AI Graded
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-2">
+                          {card.prompt}
+                        </p>
+                        <div className="space-y-1">
+                          <p className="text-sm text-slate-600 dark:text-slate-300">
+                            <span className="font-semibold">Your answer:</span> {userAnswer || "No answer"}
+                          </p>
+                          {!result.is_correct && (
+                            <p className="text-sm text-slate-600 dark:text-slate-300">
+                              <span className="font-semibold">Correct answer:</span> {card.answer}
+                            </p>
+                          )}
+                          {result.llm_feedback && (
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 italic">
+                              {result.llm_feedback}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className={`flex-shrink-0 rounded-full p-2 ${
+                        result.is_correct
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      }`}>
+                        {result.is_correct ? (
+                          <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => navigate("/app/dashboard")}
                 className="rounded-full bg-brand-500 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/30 transition hover:bg-brand-600"
               >
                 Return to Dashboard
