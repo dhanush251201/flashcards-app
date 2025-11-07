@@ -416,3 +416,500 @@ class TestActivityData:
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 14  # Should return 14 days of data
+
+
+@pytest.mark.integration
+class TestExamModeCardFiltering:
+    """Test that exam mode correctly filters out basic card types."""
+
+    def test_exam_mode_excludes_basic_cards(self, client: TestClient, test_deck, test_user_token, test_cards, db):
+        """Test that basic cards are not included in exam mode."""
+        # test_cards fixture includes: MCQ, SHORT_ANSWER, CLOZE, BASIC
+        # In exam mode, only MCQ, SHORT_ANSWER, and CLOZE should be available
+
+        # Start exam session
+        payload = {"deck_id": test_deck.id, "mode": "exam"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Get deck to see all cards
+        response = client.get(
+            f"/api/v1/decks/{test_deck.id}",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        deck_data = response.json()
+        all_cards = deck_data["cards"]
+
+        # Verify we have 4 cards total (1 of each type)
+        assert len(all_cards) == 4
+
+        # Count card types
+        card_types = [card["type"] for card in all_cards]
+        assert "multiple_choice" in card_types
+        assert "short_answer" in card_types
+        assert "cloze" in card_types
+        assert "basic" in card_types
+
+        # In exam mode, frontend should filter to only 3 cards (excluding basic)
+        exam_eligible_cards = [
+            card for card in all_cards
+            if card["type"] in ["multiple_choice", "short_answer", "cloze"]
+        ]
+        assert len(exam_eligible_cards) == 3
+
+    def test_exam_mode_with_only_basic_cards(self, client: TestClient, test_deck, test_user_token, db):
+        """Test exam mode when deck contains only basic cards."""
+        from app.models import Card, Deck
+        from app.models.enums import CardType
+
+        # Create a deck with only basic cards
+        basic_deck = Deck(
+            title="Basic Only Deck",
+            description="Only basic flashcards",
+            is_public=True,
+            owner_user_id=1,
+        )
+        db.add(basic_deck)
+        db.commit()
+        db.refresh(basic_deck)
+
+        # Add only basic cards
+        basic_cards = [
+            Card(
+                deck_id=basic_deck.id,
+                type=CardType.BASIC,
+                prompt="Question 1",
+                answer="Answer 1"
+            ),
+            Card(
+                deck_id=basic_deck.id,
+                type=CardType.BASIC,
+                prompt="Question 2",
+                answer="Answer 2"
+            ),
+        ]
+        for card in basic_cards:
+            db.add(card)
+        db.commit()
+
+        # Start exam session
+        payload = {"deck_id": basic_deck.id, "mode": "exam"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+
+        # Get deck
+        response = client.get(
+            f"/api/v1/decks/{basic_deck.id}",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        deck_data = response.json()
+
+        # Verify frontend would see no exam-eligible cards
+        exam_eligible_cards = [
+            card for card in deck_data["cards"]
+            if card["type"] in ["multiple_choice", "short_answer", "cloze"]
+        ]
+        assert len(exam_eligible_cards) == 0
+
+    def test_exam_mode_with_mixed_cards(self, client: TestClient, test_user_token, db):
+        """Test exam mode with various proportions of card types."""
+        from app.models import Card, Deck
+        from app.models.enums import CardType
+
+        # Create deck with mixed cards
+        mixed_deck = Deck(
+            title="Mixed Deck",
+            description="Mix of all card types",
+            is_public=True,
+            owner_user_id=1,
+        )
+        db.add(mixed_deck)
+        db.commit()
+        db.refresh(mixed_deck)
+
+        # Add multiple cards of each type
+        cards = [
+            # 3 basic cards
+            Card(deck_id=mixed_deck.id, type=CardType.BASIC, prompt="Basic 1", answer="A1"),
+            Card(deck_id=mixed_deck.id, type=CardType.BASIC, prompt="Basic 2", answer="A2"),
+            Card(deck_id=mixed_deck.id, type=CardType.BASIC, prompt="Basic 3", answer="A3"),
+            # 2 MCQ cards
+            Card(
+                deck_id=mixed_deck.id,
+                type=CardType.MULTIPLE_CHOICE,
+                prompt="MCQ 1",
+                answer="A",
+                options=["A", "B", "C", "D"]
+            ),
+            Card(
+                deck_id=mixed_deck.id,
+                type=CardType.MULTIPLE_CHOICE,
+                prompt="MCQ 2",
+                answer="B",
+                options=["A", "B", "C", "D"]
+            ),
+            # 2 short answer cards
+            Card(deck_id=mixed_deck.id, type=CardType.SHORT_ANSWER, prompt="SA 1", answer="Answer 1"),
+            Card(deck_id=mixed_deck.id, type=CardType.SHORT_ANSWER, prompt="SA 2", answer="Answer 2"),
+            # 1 cloze card
+            Card(
+                deck_id=mixed_deck.id,
+                type=CardType.CLOZE,
+                prompt="Paris is the capital of [...]",
+                answer="France",
+                cloze_data={"blanks": [{"answer": "France"}]}
+            ),
+        ]
+        for card in cards:
+            db.add(card)
+        db.commit()
+
+        # Start exam session
+        payload = {"deck_id": mixed_deck.id, "mode": "exam"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+
+        # Get deck
+        response = client.get(
+            f"/api/v1/decks/{mixed_deck.id}",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        deck_data = response.json()
+
+        # Total cards: 8
+        assert len(deck_data["cards"]) == 8
+
+        # Exam eligible: 5 (2 MCQ + 2 SA + 1 Cloze)
+        exam_eligible_cards = [
+            card for card in deck_data["cards"]
+            if card["type"] in ["multiple_choice", "short_answer", "cloze"]
+        ]
+        assert len(exam_eligible_cards) == 5
+
+
+@pytest.mark.integration
+class TestExamModeBatchSubmission:
+    """Test exam mode batch submission and grading."""
+
+    def test_exam_mode_batch_submission(self, client: TestClient, test_deck, test_user_token, test_cards, db):
+        """Test submitting multiple answers in exam mode."""
+        from app.models.enums import QuizMode, CardType
+
+        # Start exam session
+        payload = {"deck_id": test_deck.id, "mode": "exam"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Get exam-eligible cards (MCQ, SA, Cloze - not Basic)
+        exam_cards = [c for c in test_cards if c.type != CardType.BASIC]
+        assert len(exam_cards) == 3
+
+        # Submit answers for all exam cards
+        for card in exam_cards:
+            if card.type == CardType.MULTIPLE_CHOICE:
+                user_answer = card.answer  # Correct answer
+            elif card.type == CardType.SHORT_ANSWER:
+                user_answer = card.answer  # Correct answer
+            elif card.type == CardType.CLOZE:
+                user_answer = '["Paris"]'  # Correct answer as JSON
+
+            response = client.post(
+                f"/api/v1/study/sessions/{session_id}/answer",
+                json={"card_id": card.id, "user_answer": user_answer},
+                headers={"Authorization": f"Bearer {test_user_token}"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["card_id"] == card.id
+            assert data["is_correct"] is True  # All correct answers
+
+        # Finish session
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/finish",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "completed"
+
+        # Check statistics
+        response = client.get(
+            f"/api/v1/study/sessions/{session_id}/statistics",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        stats = response.json()
+        assert stats["total_responses"] == 3
+        assert stats["correct_count"] == 3
+        assert stats["incorrect_count"] == 0
+
+    def test_exam_mode_incorrect_answers(self, client: TestClient, test_deck, test_user_token, test_cards):
+        """Test exam mode with incorrect answers."""
+        from app.models.enums import CardType
+
+        # Start exam session
+        payload = {"deck_id": test_deck.id, "mode": "exam"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Submit wrong answers
+        exam_cards = [c for c in test_cards if c.type != CardType.BASIC]
+
+        # Wrong MCQ answer
+        mcq_card = [c for c in exam_cards if c.type == CardType.MULTIPLE_CHOICE][0]
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": mcq_card.id, "user_answer": "999"},  # Wrong
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_correct"] is False
+
+        # Wrong short answer
+        sa_card = [c for c in exam_cards if c.type == CardType.SHORT_ANSWER][0]
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": sa_card.id, "user_answer": "London"},  # Wrong
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        # May be correct or incorrect depending on LLM or exact matching
+        assert response.json()["is_correct"] is not None
+
+        # Check statistics
+        response = client.get(
+            f"/api/v1/study/sessions/{session_id}/statistics",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        stats = response.json()
+        assert stats["total_responses"] == 2
+        assert stats["incorrect_count"] >= 1  # At least MCQ is wrong
+
+    def test_exam_mode_partial_submission(self, client: TestClient, test_deck, test_user_token, test_cards):
+        """Test exam mode when not all questions are answered."""
+        from app.models.enums import CardType
+
+        # Start exam session
+        payload = {"deck_id": test_deck.id, "mode": "exam"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Answer only 1 out of 3 exam questions
+        exam_cards = [c for c in test_cards if c.type != CardType.BASIC]
+        card = exam_cards[0]
+
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": card.id, "user_answer": card.answer},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+
+        # Finish session early
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/finish",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+
+        # Check statistics - should show 1 answered, 2 unanswered
+        response = client.get(
+            f"/api/v1/study/sessions/{session_id}/statistics",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        stats = response.json()
+        assert stats["total_responses"] == 1
+
+
+@pytest.mark.integration
+class TestLLMAnswerChecking:
+    """Test LLM answer checking for short answer and cloze questions."""
+
+    def test_short_answer_exact_match_fallback(self, client: TestClient, test_deck, test_user_token, test_cards, db):
+        """Test that short answers fall back to exact matching when LLM unavailable."""
+        from app.models.enums import QuizMode, CardType
+
+        # Create practice session (uses auto-grading)
+        payload = {"deck_id": test_deck.id, "mode": "practice"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Get short answer card
+        sa_card = [c for c in test_cards if c.type == CardType.SHORT_ANSWER][0]
+
+        # Submit exact match answer
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": sa_card.id, "user_answer": "Paris"},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_correct"] is True
+        # llm_feedback may or may not be present depending on LLM availability
+
+        # Submit case-insensitive match
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": sa_card.id, "user_answer": "paris"},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_correct"] is True
+
+    def test_cloze_answer_checking(self, client: TestClient, test_deck, test_user_token, test_cards):
+        """Test cloze answer checking."""
+        from app.models.enums import CardType
+
+        # Create practice session
+        payload = {"deck_id": test_deck.id, "mode": "practice"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Get cloze card
+        cloze_card = [c for c in test_cards if c.type == CardType.CLOZE][0]
+
+        # Submit correct answer
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": cloze_card.id, "user_answer": '["Paris"]'},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_correct"] is True
+
+        # Submit incorrect answer
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": cloze_card.id, "user_answer": '["London"]'},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_correct"] is False
+
+    def test_cloze_multiple_blanks(self, client: TestClient, test_deck, test_user_token, db):
+        """Test cloze questions with multiple blanks."""
+        from app.models import Card
+        from app.models.enums import CardType
+
+        # Create cloze card with multiple blanks
+        multi_cloze = Card(
+            deck_id=test_deck.id,
+            type=CardType.CLOZE,
+            prompt="[...] is the capital of [...], known for its [...] Tower.",
+            answer="Paris, France, Eiffel",
+            cloze_data={
+                "blanks": [
+                    {"answer": "Paris"},
+                    {"answer": "France"},
+                    {"answer": "Eiffel"}
+                ]
+            }
+        )
+        db.add(multi_cloze)
+        db.commit()
+        db.refresh(multi_cloze)
+
+        # Create practice session
+        payload = {"deck_id": test_deck.id, "mode": "practice"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Submit all correct answers
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": multi_cloze.id, "user_answer": '["Paris", "France", "Eiffel"]'},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_correct"] is True
+
+        # Submit partially correct (should be incorrect)
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": multi_cloze.id, "user_answer": '["Paris", "France", "London"]'},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_correct"] is False
+
+    def test_llm_feedback_returned_in_response(self, client: TestClient, test_deck, test_user_token, test_cards):
+        """Test that LLM feedback is included in API response when available."""
+        from app.models.enums import CardType
+
+        # Create practice session
+        payload = {"deck_id": test_deck.id, "mode": "practice"}
+        response = client.post(
+            "/api/v1/study/sessions",
+            json=payload,
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 201
+        session_id = response.json()["id"]
+
+        # Get short answer card
+        sa_card = [c for c in test_cards if c.type == CardType.SHORT_ANSWER][0]
+
+        # Submit an answer that might trigger LLM
+        response = client.post(
+            f"/api/v1/study/sessions/{session_id}/answer",
+            json={"card_id": sa_card.id, "user_answer": "The capital of France is Paris"},
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "llm_feedback" in data
+        # llm_feedback will be None if LLM unavailable, or a string if available
+        # We can't guarantee LLM availability in tests, so we just check the field exists

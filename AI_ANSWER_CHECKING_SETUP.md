@@ -59,15 +59,15 @@ You need **either** OpenAI API or Ollama running to use AI answer checking.
 ## Important Notes
 
 ### Modes That Use AI Checking:
-- ✅ **Practice Mode** - Uses AI checking for SHORT_ANSWER and CLOZE
-- ✅ **Exam Mode** - Uses AI checking for SHORT_ANSWER and CLOZE
+- ✅ **Practice Mode** - Uses AI checking for SHORT_ANSWER and CLOZE, immediate feedback after each answer
+- ✅ **Exam Mode** - Uses AI checking for SHORT_ANSWER and CLOZE, batch grading at the end
 - ❌ **Review Mode** - Does NOT use auto-grading or AI checking
 
 ### Question Types:
-- ✅ **SHORT_ANSWER** - Uses AI checking
-- ✅ **CLOZE** (fill-in-the-blank) - Uses AI checking
-- ❌ **MULTIPLE_CHOICE** - Uses exact matching (AI not needed)
-- ❌ **BASIC** - No auto-grading
+- ✅ **SHORT_ANSWER** - Uses AI checking for semantic understanding
+- ✅ **CLOZE** (fill-in-the-blank) - Uses AI checking for semantic understanding
+- ✅ **MULTIPLE_CHOICE** - Uses exact matching (AI not needed)
+- ❌ **BASIC** (flashcards) - No auto-grading, not included in exam mode
 
 ### Fallback Behavior:
 If AI checking is unavailable (no API key, Ollama not running, or API error):
@@ -120,7 +120,9 @@ If AI checking is unavailable (no API key, Ollama not running, or API error):
 
 ## Example Workflow
 
-Here's a complete test scenario:
+### Practice Mode Workflow
+
+Here's a complete test scenario for Practice mode:
 
 1. **Setup OpenAI** (or Ollama)
 2. **Create a test deck** with a SHORT_ANSWER question:
@@ -138,6 +140,42 @@ Here's a complete test scenario:
 5. **Observe the badges**:
    - If AI is working: Purple "⚡ AI Generated" badge
    - If falling back: Gray "✓ Exact Match" badge
+
+### Exam Mode Workflow
+
+Exam mode provides a complete testing experience:
+
+1. **Setup OpenAI** (or Ollama) before starting
+
+2. **Create a test deck** with mixed question types:
+   - Basic (flashcard) questions - WILL BE FILTERED OUT
+   - Multiple choice questions
+   - Short answer questions
+   - Cloze (fill-in-the-blank) questions
+
+3. **Start Exam mode** on this deck
+   - Notice only MCQ, short answer, and cloze questions appear
+   - Basic flashcard questions are automatically excluded
+
+4. **Answer all questions**:
+   - No feedback is shown as you answer
+   - You see "Answer recorded! Moving to next question..."
+   - Progress indicator shows "Answered: X / Y"
+   - Can skip questions to come back later
+
+5. **Submit the exam** when all questions answered:
+   - "Submit Exam" button appears when all questions completed
+   - You see "AI is checking your answers" loading screen
+   - AI grades all SHORT_ANSWER and CLOZE questions in batch
+   - MCQ questions graded with exact matching
+
+6. **View comprehensive results**:
+   - Overall score percentage
+   - Correct/Incorrect counts
+   - Detailed question-by-question breakdown
+   - Purple "⚡ AI Graded" badge on AI-checked questions
+   - AI feedback for each answer
+   - Correct answers shown for incorrect responses
 
 ## Cost Considerations
 
