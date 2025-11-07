@@ -71,6 +71,7 @@ export type StudyResponse = {
   is_correct?: boolean | null;
   quality?: number | null;
   responded_at: string;
+  llm_feedback?: string | null;
 };
 
 export type DueReviewCard = {

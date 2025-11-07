@@ -38,6 +38,7 @@ export const StudySessionPage = () => {
   const [clozeAnswers, setClozeAnswers] = useState<string[]>([]);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [shuffledCards, setShuffledCards] = useState<Card[]>([]);
+  const [llmFeedback, setLlmFeedback] = useState<string | null>(null);
 
   const sessionQuery = useQuery({
     queryKey: ["session", sessionId],
@@ -59,15 +60,28 @@ export const StudySessionPage = () => {
 
   const answerMutation = useMutation<StudyResponse, unknown, AnswerMutationVariables>({
     mutationFn: async ({ cardId, quality, userAnswer: submittedAnswer }) => {
+      console.log("=== Mutation starting ===");
       const { data } = await apiClient.post<StudyResponse>(`/study/sessions/${sessionId}/answer`, {
         card_id: cardId,
         quality,
         user_answer: submittedAnswer ?? null
       });
+      console.log("=== Mutation received data ===", data);
+      console.log("llm_feedback in response:", data.llm_feedback);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("=== onSuccess called ===");
+      console.log("data.llm_feedback:", data.llm_feedback);
       queryClient.invalidateQueries({ queryKey: ["due-review"] });
+      // Store LLM feedback if available
+      if (data.llm_feedback) {
+        console.log("Setting llmFeedback state to:", data.llm_feedback);
+        setLlmFeedback(data.llm_feedback);
+      } else {
+        console.log("No llm_feedback in response data");
+        setLlmFeedback(null);
+      }
     }
   });
 
@@ -155,6 +169,7 @@ export const StudySessionPage = () => {
   useEffect(() => {
     setUserAnswer(null);
     setShortAnswerInput("");
+    setLlmFeedback(null);
     // Initialize cloze answers array with empty strings for each blank
     if (currentCard?.type === "cloze" && currentCard.cloze_data?.blanks) {
       setClozeAnswers(new Array(currentCard.cloze_data.blanks.length).fill(""));
@@ -169,18 +184,55 @@ export const StudySessionPage = () => {
     }
   }, [isMultipleChoice, isShortAnswer, isCloze, userAnswer]);
 
-  const handleSelectOption = (option: string) => {
-    if (answerMutation.isPending) return;
+  const handleSelectOption = async (option: string) => {
+    if (answerMutation.isPending || !currentCard) return;
     setUserAnswer(option);
+
+    // In Practice/Exam modes, submit immediately for auto-grading
+    // In Review mode, wait for user to click Next and provide quality rating
+    if (!isReviewMode) {
+      const quality = deriveQuality();
+      await answerMutation.mutateAsync({
+        cardId: currentCard.id,
+        quality,
+        userAnswer: option
+      });
+    }
   };
 
-  const handleSubmitShortAnswer = () => {
-    if (answerMutation.isPending || !shortAnswerInput.trim()) return;
-    setUserAnswer(shortAnswerInput.trim());
+  const handleSubmitShortAnswer = async () => {
+    console.log("=== handleSubmitShortAnswer called ===");
+    console.log("isPending:", answerMutation.isPending);
+    console.log("shortAnswerInput:", shortAnswerInput);
+    console.log("currentCard:", currentCard?.id);
+    console.log("isReviewMode:", isReviewMode);
+
+    if (answerMutation.isPending || !shortAnswerInput.trim() || !currentCard) return;
+    const answer = shortAnswerInput.trim();
+
+    // In Practice/Exam modes, submit immediately for LLM evaluation
+    // In Review mode, set answer and wait for user to click Next
+    if (!isReviewMode) {
+      console.log("Calling API to submit answer immediately");
+      const quality = deriveQuality();
+
+      // Set userAnswer BEFORE calling API so the input gets disabled and UI shows it's processing
+      setUserAnswer(answer);
+
+      await answerMutation.mutateAsync({
+        cardId: currentCard.id,
+        quality,
+        userAnswer: answer
+      });
+      console.log("API call completed");
+    } else {
+      console.log("Review mode - skipping immediate submission");
+      setUserAnswer(answer);
+    }
   };
 
-  const handleSubmitCloze = () => {
-    if (answerMutation.isPending) return;
+  const handleSubmitCloze = async () => {
+    if (answerMutation.isPending || !currentCard) return;
     // Check if all blanks are filled
     if (clozeAnswers.some(a => !a || !a.trim())) {
       console.log("Some blanks not filled:", clozeAnswers);
@@ -189,7 +241,23 @@ export const StudySessionPage = () => {
     const answersJson = JSON.stringify(clozeAnswers);
     console.log("Setting user answer:", answersJson);
     console.log("Current card cloze_data:", currentCard?.cloze_data);
-    setUserAnswer(answersJson);
+
+    // In Practice/Exam modes, submit immediately for LLM evaluation
+    // In Review mode, set answer and wait for user to click Next
+    if (!isReviewMode) {
+      const quality = deriveQuality();
+
+      // Set userAnswer BEFORE calling API so inputs get disabled and UI shows it's processing
+      setUserAnswer(answersJson);
+
+      await answerMutation.mutateAsync({
+        cardId: currentCard.id,
+        quality,
+        userAnswer: answersJson
+      });
+    } else {
+      setUserAnswer(answersJson);
+    }
   };
 
   const handleClozeInputChange = (index: number, value: string) => {
@@ -207,20 +275,41 @@ export const StudySessionPage = () => {
   };
 
   const handleNext = async () => {
+    console.log("=== handleNext called ===");
+    console.log("currentCard type:", currentCard?.type);
+    console.log("isReviewMode:", isReviewMode);
+    console.log("userAnswer:", userAnswer);
+
     if (!currentCard || answerMutation.isPending || !readyForNext) return;
 
-    const quality = deriveQuality();
+    // Determine if we need to submit the answer now
+    // Submit if:
+    // 1. REVIEW mode: Always submit on next (user provides quality rating)
+    // 2. BASIC cards in Practice/Exam: Submit on next (no auto-grading)
+    // 3. MC/SHORT_ANSWER/CLOZE in Practice/Exam: Already submitted immediately, skip
+    const shouldSubmitNow =
+      isReviewMode ||
+      currentCard.type === "basic";
 
-    await answerMutation.mutateAsync({
-      cardId: currentCard.id,
-      quality,
-      userAnswer
-    });
+    console.log("shouldSubmitNow:", shouldSubmitNow);
+
+    if (shouldSubmitNow) {
+      console.log("Submitting answer in handleNext");
+      const quality = deriveQuality();
+      await answerMutation.mutateAsync({
+        cardId: currentCard.id,
+        quality,
+        userAnswer
+      });
+    } else {
+      console.log("Skipping submission in handleNext (already submitted)");
+    }
 
     setFlipped(false);
     setUserAnswer(null);
     setShortAnswerInput("");
     setClozeAnswers([]);
+    setLlmFeedback(null);
 
     // For practice mode, loop cards infinitely
     if (isPracticeMode && isEndless) {
@@ -394,25 +483,76 @@ export const StudySessionPage = () => {
               </div>
 
               {userAnswer && (
-                <div
-                  className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
-                    normalize(userAnswer) === normalize(currentCard.answer) ||
-                    (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer)))
-                      ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
-                      : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
-                  }`}
-                >
-                  {normalize(userAnswer) === normalize(currentCard.answer) ||
-                  (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer))) ? (
-                    "Great job! Your answer is correct."
-                  ) : (
-                    <div>
-                      <p className="font-semibold">Your answer: {userAnswer}</p>
-                      <p className="mt-1">
-                        Correct answer{currentCard.options && currentCard.options.length > 1 ? "s" : ""}:{" "}
-                        {currentCard.options && currentCard.options.length > 0 ? currentCard.options.join(", ") : currentCard.answer}
-                      </p>
+                <div className="mt-4 space-y-2">
+                  {/* Show loading state while mutation is pending */}
+                  {answerMutation.isPending && !isReviewMode ? (
+                    <div className="rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10">
+                      <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
+                        <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="font-medium">Checking your answer with AI...</span>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            llmFeedback
+                              ? "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300"
+                              : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          {llmFeedback ? (
+                            <>
+                              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              AI Generated
+                            </>
+                          ) : (
+                            <>
+                              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Exact Match
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <div
+                        className={`rounded-2xl px-4 py-3 text-sm ${
+                          llmFeedback
+                            ? answerMutation.data?.is_correct
+                              ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                              : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                            : normalize(userAnswer) === normalize(currentCard.answer) ||
+                              (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer)))
+                            ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                            : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                        }`}
+                      >
+                        {llmFeedback ? (
+                          <div>
+                            <p className="font-semibold">Your answer: {userAnswer}</p>
+                            <p className="mt-2">{llmFeedback}</p>
+                          </div>
+                        ) : normalize(userAnswer) === normalize(currentCard.answer) ||
+                          (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer))) ? (
+                          "Great job! Your answer is correct."
+                        ) : (
+                          <div>
+                            <p className="font-semibold">Your answer: {userAnswer}</p>
+                            <p className="mt-1">
+                              Correct answer{currentCard.options && currentCard.options.length > 1 ? "s" : ""}:{" "}
+                              {currentCard.options && currentCard.options.length > 0 ? currentCard.options.join(", ") : currentCard.answer}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -468,31 +608,81 @@ export const StudySessionPage = () => {
 
                 {userAnswer ? (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs text-slate-500">Debug: userAnswer is set, cloze_data exists: {currentCard.cloze_data ? 'yes' : 'no'}</p>
-                    {currentCard.cloze_data && currentCard.cloze_data.blanks ? (
-                      currentCard.cloze_data.blanks.map((blank, idx) => {
-                        const userAns = clozeAnswers[idx];
-                        const correctAnswers = Array.isArray(blank.answer) ? blank.answer : [blank.answer];
-                        const isCorrect = correctAnswers.some((ans) => normalize(ans) === normalize(userAns));
-
-                        return (
+                    {/* Show loading state while mutation is pending */}
+                    {answerMutation.isPending && !isReviewMode ? (
+                      <div className="rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10">
+                        <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
+                          <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span className="font-medium">Checking your answer with AI...</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              llmFeedback
+                                ? "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {llmFeedback ? (
+                              <>
+                                <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                AI Generated
+                              </>
+                            ) : (
+                              <>
+                                <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Exact Match
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        {llmFeedback ? (
                           <div
-                            key={idx}
                             className={`rounded-2xl px-4 py-3 text-sm ${
-                              isCorrect
+                              answerMutation.data?.is_correct
                                 ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
                                 : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
                             }`}
                           >
-                            <p>
-                              <span className="font-semibold">Blank {idx + 1}:</span> {userAns}
-                              {isCorrect ? " ✓" : ` ✗ (Correct: ${correctAnswers.join(", ")})`}
-                            </p>
+                            <p className="font-semibold">Your answer: {clozeAnswers.join(", ")}</p>
+                            <p className="mt-2">{llmFeedback}</p>
                           </div>
-                        );
-                      })
-                    ) : (
-                      <p className="text-sm text-rose-600">Error: Missing cloze_data or blanks</p>
+                        ) : currentCard.cloze_data && currentCard.cloze_data.blanks ? (
+                          currentCard.cloze_data.blanks.map((blank, idx) => {
+                            const userAns = clozeAnswers[idx];
+                            const correctAnswers = Array.isArray(blank.answer) ? blank.answer : [blank.answer];
+                            const isCorrect = correctAnswers.some((ans) => normalize(ans) === normalize(userAns));
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`rounded-2xl px-4 py-3 text-sm ${
+                                  isCorrect
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                    : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                                }`}
+                              >
+                                <p>
+                                  <span className="font-semibold">Blank {idx + 1}:</span> {userAns}
+                                  {isCorrect ? " ✓" : ` ✗ (Correct: ${correctAnswers.join(", ")})`}
+                                </p>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-sm text-rose-600">Error: Missing cloze_data or blanks</p>
+                        )}
+                      </>
                     )}
                   </div>
                 ) : null}

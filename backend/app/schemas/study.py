@@ -52,6 +52,7 @@ class StudyAnswerRead(BaseModel):
     is_correct: Optional[bool]
     quality: Optional[int]
     responded_at: datetime
+    llm_feedback: Optional[str] = None
 
 
 class DueReviewCard(BaseModel):
@@ -68,3 +69,8 @@ class SessionStatistics(BaseModel):
     correct_count: int
     incorrect_count: int
     unanswered_count: int
+
+
+class ActivityData(BaseModel):
+    date: str
+    count: int

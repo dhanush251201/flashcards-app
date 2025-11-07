@@ -10,7 +10,7 @@ const navItems = [
     { name: "Settings", to: "/app/settings", icon: CogIcon }
 ];
 export const SidebarNav = () => {
-    return (_jsx("nav", { className: "space-y-2", children: navItems.map((item) => (_jsxs(NavLink, { to: item.to, className: ({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${isActive
-                ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900/70"}`, children: [_jsx(item.icon, { className: "size-5" }), _jsx("span", { children: item.name })] }, item.name))) }));
+    return (_jsx("nav", { className: "space-y-2", children: navItems.map((item) => (_jsxs(NavLink, { to: item.to, className: ({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all shadow-md ${isActive
+                ? "bg-brand-500 text-white shadow-brand-500/20"
+                : "bg-brand-500 text-white shadow-brand-500/20 hover:bg-brand-600"}`, children: [_jsx(item.icon, { className: "size-5" }), _jsx("span", { children: item.name })] }, item.name))) }));
 };

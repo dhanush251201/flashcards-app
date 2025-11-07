@@ -18,10 +18,10 @@ export const SidebarNav = () => {
           key={item.name}
           to={item.to}
           className={({ isActive }) =>
-            `flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+            `flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all shadow-md ${
               isActive
-                ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900/70"
+                ? "bg-brand-500 text-white shadow-brand-500/20"
+                : "bg-brand-500 text-white shadow-brand-500/20 hover:bg-brand-600"
             }`
           }
         >

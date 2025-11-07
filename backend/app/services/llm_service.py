@@ -432,6 +432,177 @@ Respond with ONLY the JSON object, no additional text."""
             logger.debug(f"Ollama not available: {str(e)}")
             return False
 
+    @staticmethod
+    def _create_answer_checking_prompt(question: str, expected_answer: str, user_answer: str) -> str:
+        """Create prompt for checking answer correctness"""
+        return f"""You are an expert educator tasked with evaluating student answers.
+
+Question: {question}
+Expected Answer: {expected_answer}
+Student's Answer: {user_answer}
+
+Evaluate if the student's answer is semantically correct compared to the expected answer. Consider:
+1. The core meaning and concepts are the same
+2. Minor wording differences are acceptable
+3. Synonyms and paraphrasing are acceptable
+4. Spelling and grammar errors should be ignored if the meaning is clear
+
+You must respond with ONLY a JSON object in this exact format:
+{{
+  "is_correct": true or false,
+  "feedback": "Brief explanation of why the answer is correct or incorrect. If incorrect, provide the correct answer and optionally a helpful explanation."
+}}
+
+Important:
+- The "is_correct" field must be a boolean (true/false)
+- The "feedback" field should be a concise string (1-2 sentences)
+- If the answer is correct, the feedback should be encouraging (e.g., "Correct! Great job.")
+- If incorrect, provide the correct answer and a brief explanation of why
+- DO NOT include any text before or after the JSON"""
+
+    @staticmethod
+    async def check_answer(
+        question: str,
+        expected_answer: str,
+        user_answer: str,
+        user: Optional[User] = None
+    ) -> Dict[str, Any]:
+        """
+        Use LLM to check if a user's answer is semantically correct.
+
+        Args:
+            question: The question prompt
+            expected_answer: The correct/expected answer
+            user_answer: The user's submitted answer
+            user: Optional user object for LLM provider preference
+
+        Returns:
+            Dict with 'is_correct' (bool) and 'feedback' (str) keys
+
+        Raises:
+            Returns None if LLM checking fails (falls back to exact matching)
+        """
+        # Validate inputs
+        if not question or not expected_answer or not user_answer:
+            return None
+
+        # Determine which provider to use
+        use_openai = user and bool(user.openai_api_key)
+        use_ollama = not use_openai
+
+        if user and user.llm_provider_preference == "openai" and user.openai_api_key:
+            use_openai = True
+            use_ollama = False
+        elif user and user.llm_provider_preference == "ollama":
+            use_openai = False
+            use_ollama = True
+
+        try:
+            if use_openai:
+                logger.info("Checking answer using OpenAI")
+                return await LLMService._check_answer_with_openai(
+                    question, expected_answer, user_answer, user.openai_api_key
+                )
+            elif use_ollama:
+                logger.info("Checking answer using Ollama")
+                # Check if Ollama is available
+                if await LLMService.check_ollama_availability():
+                    return await LLMService._check_answer_with_ollama(
+                        question, expected_answer, user_answer
+                    )
+                else:
+                    logger.warning("Ollama not available for answer checking")
+                    return None
+            else:
+                logger.info("No LLM provider available for answer checking")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error checking answer with LLM: {str(e)}")
+            return None
+
+    @staticmethod
+    async def _check_answer_with_openai(
+        question: str,
+        expected_answer: str,
+        user_answer: str,
+        api_key: str
+    ) -> Dict[str, Any]:
+        """Check answer using OpenAI API"""
+        try:
+            client = AsyncOpenAI(api_key=api_key)
+
+            response = await client.chat.completions.create(
+                model=LLMService.OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are an expert educator evaluating student answers. Respond only with valid JSON."},
+                    {"role": "user", "content": LLMService._create_answer_checking_prompt(question, expected_answer, user_answer)}
+                ],
+                temperature=0.3,  # Lower temperature for more consistent evaluation
+                max_tokens=500,
+                response_format={"type": "json_object"}
+            )
+
+            response_text = response.choices[0].message.content
+            result = json.loads(response_text)
+
+            # Validate response structure
+            if "is_correct" not in result or "feedback" not in result:
+                logger.error("Invalid response format from OpenAI")
+                return None
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error in OpenAI answer checking: {str(e)}")
+            return None
+
+    @staticmethod
+    async def _check_answer_with_ollama(
+        question: str,
+        expected_answer: str,
+        user_answer: str
+    ) -> Dict[str, Any]:
+        """Check answer using Ollama"""
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{LLMService.OLLAMA_BASE_URL}/api/chat",
+                    json={
+                        "model": LLMService.OLLAMA_MODEL,
+                        "messages": [
+                            {"role": "system", "content": "You are an expert educator evaluating student answers. Respond only with valid JSON."},
+                            {"role": "user", "content": LLMService._create_answer_checking_prompt(question, expected_answer, user_answer)}
+                        ],
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.3,
+                            "num_predict": 500
+                        },
+                        "format": "json"
+                    }
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"Ollama API error: {response.text}")
+                    return None
+
+                result = response.json()
+                response_text = result.get("message", {}).get("content", "")
+
+                parsed_result = json.loads(response_text)
+
+                # Validate response structure
+                if "is_correct" not in parsed_result or "feedback" not in parsed_result:
+                    logger.error("Invalid response format from Ollama")
+                    return None
+
+                return parsed_result
+
+        except Exception as e:
+            logger.error(f"Error in Ollama answer checking: {str(e)}")
+            return None
+
 
 # Singleton instance
 llm_service = LLMService()

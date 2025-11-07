@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -27,6 +27,7 @@ export const StudySessionPage = () => {
     const [clozeAnswers, setClozeAnswers] = useState([]);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [shuffledCards, setShuffledCards] = useState([]);
+    const [llmFeedback, setLlmFeedback] = useState(null);
     const sessionQuery = useQuery({
         queryKey: ["session", sessionId],
         queryFn: async () => {
@@ -45,15 +46,29 @@ export const StudySessionPage = () => {
     });
     const answerMutation = useMutation({
         mutationFn: async ({ cardId, quality, userAnswer: submittedAnswer }) => {
+            console.log("=== Mutation starting ===");
             const { data } = await apiClient.post(`/study/sessions/${sessionId}/answer`, {
                 card_id: cardId,
                 quality,
                 user_answer: submittedAnswer ?? null
             });
+            console.log("=== Mutation received data ===", data);
+            console.log("llm_feedback in response:", data.llm_feedback);
             return data;
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
+            console.log("=== onSuccess called ===");
+            console.log("data.llm_feedback:", data.llm_feedback);
             queryClient.invalidateQueries({ queryKey: ["due-review"] });
+            // Store LLM feedback if available
+            if (data.llm_feedback) {
+                console.log("Setting llmFeedback state to:", data.llm_feedback);
+                setLlmFeedback(data.llm_feedback);
+            }
+            else {
+                console.log("No llm_feedback in response data");
+                setLlmFeedback(null);
+            }
         }
     });
     const statisticsMutation = useMutation({
@@ -131,6 +146,7 @@ export const StudySessionPage = () => {
     useEffect(() => {
         setUserAnswer(null);
         setShortAnswerInput("");
+        setLlmFeedback(null);
         // Initialize cloze answers array with empty strings for each blank
         if (currentCard?.type === "cloze" && currentCard.cloze_data?.blanks) {
             setClozeAnswers(new Array(currentCard.cloze_data.blanks.length).fill(""));
@@ -144,18 +160,51 @@ export const StudySessionPage = () => {
             setFlipped(true);
         }
     }, [isMultipleChoice, isShortAnswer, isCloze, userAnswer]);
-    const handleSelectOption = (option) => {
-        if (answerMutation.isPending)
+    const handleSelectOption = async (option) => {
+        if (answerMutation.isPending || !currentCard)
             return;
         setUserAnswer(option);
+        // In Practice/Exam modes, submit immediately for auto-grading
+        // In Review mode, wait for user to click Next and provide quality rating
+        if (!isReviewMode) {
+            const quality = deriveQuality();
+            await answerMutation.mutateAsync({
+                cardId: currentCard.id,
+                quality,
+                userAnswer: option
+            });
+        }
     };
-    const handleSubmitShortAnswer = () => {
-        if (answerMutation.isPending || !shortAnswerInput.trim())
+    const handleSubmitShortAnswer = async () => {
+        console.log("=== handleSubmitShortAnswer called ===");
+        console.log("isPending:", answerMutation.isPending);
+        console.log("shortAnswerInput:", shortAnswerInput);
+        console.log("currentCard:", currentCard?.id);
+        console.log("isReviewMode:", isReviewMode);
+        if (answerMutation.isPending || !shortAnswerInput.trim() || !currentCard)
             return;
-        setUserAnswer(shortAnswerInput.trim());
+        const answer = shortAnswerInput.trim();
+        // In Practice/Exam modes, submit immediately for LLM evaluation
+        // In Review mode, set answer and wait for user to click Next
+        if (!isReviewMode) {
+            console.log("Calling API to submit answer immediately");
+            const quality = deriveQuality();
+            // Set userAnswer BEFORE calling API so the input gets disabled and UI shows it's processing
+            setUserAnswer(answer);
+            await answerMutation.mutateAsync({
+                cardId: currentCard.id,
+                quality,
+                userAnswer: answer
+            });
+            console.log("API call completed");
+        }
+        else {
+            console.log("Review mode - skipping immediate submission");
+            setUserAnswer(answer);
+        }
     };
-    const handleSubmitCloze = () => {
-        if (answerMutation.isPending)
+    const handleSubmitCloze = async () => {
+        if (answerMutation.isPending || !currentCard)
             return;
         // Check if all blanks are filled
         if (clozeAnswers.some(a => !a || !a.trim())) {
@@ -165,7 +214,21 @@ export const StudySessionPage = () => {
         const answersJson = JSON.stringify(clozeAnswers);
         console.log("Setting user answer:", answersJson);
         console.log("Current card cloze_data:", currentCard?.cloze_data);
-        setUserAnswer(answersJson);
+        // In Practice/Exam modes, submit immediately for LLM evaluation
+        // In Review mode, set answer and wait for user to click Next
+        if (!isReviewMode) {
+            const quality = deriveQuality();
+            // Set userAnswer BEFORE calling API so inputs get disabled and UI shows it's processing
+            setUserAnswer(answersJson);
+            await answerMutation.mutateAsync({
+                cardId: currentCard.id,
+                quality,
+                userAnswer: answersJson
+            });
+        }
+        else {
+            setUserAnswer(answersJson);
+        }
     };
     const handleClozeInputChange = (index, value) => {
         const newAnswers = [...clozeAnswers];
@@ -181,18 +244,37 @@ export const StudySessionPage = () => {
         return flipped ? 3 : 1;
     };
     const handleNext = async () => {
+        console.log("=== handleNext called ===");
+        console.log("currentCard type:", currentCard?.type);
+        console.log("isReviewMode:", isReviewMode);
+        console.log("userAnswer:", userAnswer);
         if (!currentCard || answerMutation.isPending || !readyForNext)
             return;
-        const quality = deriveQuality();
-        await answerMutation.mutateAsync({
-            cardId: currentCard.id,
-            quality,
-            userAnswer
-        });
+        // Determine if we need to submit the answer now
+        // Submit if:
+        // 1. REVIEW mode: Always submit on next (user provides quality rating)
+        // 2. BASIC cards in Practice/Exam: Submit on next (no auto-grading)
+        // 3. MC/SHORT_ANSWER/CLOZE in Practice/Exam: Already submitted immediately, skip
+        const shouldSubmitNow = isReviewMode ||
+            currentCard.type === "basic";
+        console.log("shouldSubmitNow:", shouldSubmitNow);
+        if (shouldSubmitNow) {
+            console.log("Submitting answer in handleNext");
+            const quality = deriveQuality();
+            await answerMutation.mutateAsync({
+                cardId: currentCard.id,
+                quality,
+                userAnswer
+            });
+        }
+        else {
+            console.log("Skipping submission in handleNext (already submitted)");
+        }
         setFlipped(false);
         setUserAnswer(null);
         setShortAnswerInput("");
         setClozeAnswers([]);
+        setLlmFeedback(null);
         // For practice mode, loop cards infinitely
         if (isPracticeMode && isEndless) {
             if (cardIndex >= cards.length - 1) {
@@ -250,11 +332,17 @@ export const StudySessionPage = () => {
                                                 if (e.key === "Enter" && shortAnswerInput.trim()) {
                                                     handleSubmitShortAnswer();
                                                 }
-                                            }, placeholder: "Enter your answer...", disabled: userAnswer !== null || answerMutation.isPending, className: "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500" }), !userAnswer && (_jsx("button", { type: "button", onClick: handleSubmitShortAnswer, disabled: !shortAnswerInput.trim() || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: "Submit Answer" }))] }), userAnswer && (_jsx("div", { className: `mt-4 rounded-2xl px-4 py-3 text-sm ${normalize(userAnswer) === normalize(currentCard.answer) ||
-                                        (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer)))
-                                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: normalize(userAnswer) === normalize(currentCard.answer) ||
-                                        (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer))) ? ("Great job! Your answer is correct.") : (_jsxs("div", { children: [_jsxs("p", { className: "font-semibold", children: ["Your answer: ", userAnswer] }), _jsxs("p", { className: "mt-1", children: ["Correct answer", currentCard.options && currentCard.options.length > 1 ? "s" : "", ":", " ", currentCard.options && currentCard.options.length > 0 ? currentCard.options.join(", ") : currentCard.answer] })] })) }))] })), isCloze && clozeText && (_jsx("div", { className: "space-y-4", children: _jsxs("div", { className: "rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 dark:border-brand-500/30 dark:from-brand-900/20 dark:to-slate-900", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400", children: "Fill in the blanks" }), _jsx("div", { className: "mt-3 text-base leading-relaxed text-slate-800 dark:text-slate-200", children: (() => {
+                                            }, placeholder: "Enter your answer...", disabled: userAnswer !== null || answerMutation.isPending, className: "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500" }), !userAnswer && (_jsx("button", { type: "button", onClick: handleSubmitShortAnswer, disabled: !shortAnswerInput.trim() || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: "Submit Answer" }))] }), userAnswer && (_jsx("div", { className: "mt-4 space-y-2", children: answerMutation.isPending && !isReviewMode ? (_jsx("div", { className: "rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10", children: _jsxs("div", { className: "flex items-center gap-2 text-brand-600 dark:text-brand-400", children: [_jsxs("svg", { className: "size-4 animate-spin", fill: "none", viewBox: "0 0 24 24", children: [_jsx("circle", { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }), _jsx("path", { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })] }), _jsx("span", { className: "font-medium", children: "Checking your answer with AI..." })] }) })) : (_jsxs(_Fragment, { children: [_jsx("div", { className: "flex items-center justify-between", children: _jsx("span", { className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${llmFeedback
+                                                        ? "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300"
+                                                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`, children: llmFeedback ? (_jsxs(_Fragment, { children: [_jsx("svg", { className: "size-3.5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 10V3L4 14h7v7l9-11h-7z" }) }), "AI Generated"] })) : (_jsxs(_Fragment, { children: [_jsx("svg", { className: "size-3.5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" }) }), "Exact Match"] })) }) }), _jsx("div", { className: `rounded-2xl px-4 py-3 text-sm ${llmFeedback
+                                                    ? answerMutation.data?.is_correct
+                                                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
+                                                    : normalize(userAnswer) === normalize(currentCard.answer) ||
+                                                        (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer)))
+                                                        ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: llmFeedback ? (_jsxs("div", { children: [_jsxs("p", { className: "font-semibold", children: ["Your answer: ", userAnswer] }), _jsx("p", { className: "mt-2", children: llmFeedback })] })) : normalize(userAnswer) === normalize(currentCard.answer) ||
+                                                    (currentCard.options && currentCard.options.some((opt) => normalize(opt) === normalize(userAnswer))) ? ("Great job! Your answer is correct.") : (_jsxs("div", { children: [_jsxs("p", { className: "font-semibold", children: ["Your answer: ", userAnswer] }), _jsxs("p", { className: "mt-1", children: ["Correct answer", currentCard.options && currentCard.options.length > 1 ? "s" : "", ":", " ", currentCard.options && currentCard.options.length > 0 ? currentCard.options.join(", ") : currentCard.answer] })] })) })] })) }))] })), isCloze && clozeText && (_jsx("div", { className: "space-y-4", children: _jsxs("div", { className: "rounded-3xl border-2 border-brand-200 bg-gradient-to-br from-brand-50 to-white p-6 dark:border-brand-500/30 dark:from-brand-900/20 dark:to-slate-900", children: [_jsx("p", { className: "text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400", children: "Fill in the blanks" }), _jsx("div", { className: "mt-3 text-base leading-relaxed text-slate-800 dark:text-slate-200", children: (() => {
                                             let blankCounter = 0;
                                             return clozeText.split(/(\[BLANK\])/gi).map((part, i) => {
                                                 if (part.match(/\[BLANK\]/i)) {
@@ -264,14 +352,18 @@ export const StudySessionPage = () => {
                                                 }
                                                 return _jsx("span", { children: part }, i);
                                             });
-                                        })() }), !userAnswer && (_jsxs("div", { className: "mt-4 space-y-2", children: [_jsx("button", { type: "button", onClick: handleSubmitCloze, disabled: clozeAnswers.some((a) => !a || !a.trim()) || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: "Submit Answer" }), _jsxs("p", { className: "text-xs text-slate-400", children: ["Filled: ", clozeAnswers.filter(a => a && a.trim()).length, " / ", clozeBlanksCount] })] })), userAnswer ? (_jsxs("div", { className: "mt-4 space-y-2", children: [_jsxs("p", { className: "text-xs text-slate-500", children: ["Debug: userAnswer is set, cloze_data exists: ", currentCard.cloze_data ? 'yes' : 'no'] }), currentCard.cloze_data && currentCard.cloze_data.blanks ? (currentCard.cloze_data.blanks.map((blank, idx) => {
-                                                const userAns = clozeAnswers[idx];
-                                                const correctAnswers = Array.isArray(blank.answer) ? blank.answer : [blank.answer];
-                                                const isCorrect = correctAnswers.some((ans) => normalize(ans) === normalize(userAns));
-                                                return (_jsx("div", { className: `rounded-2xl px-4 py-3 text-sm ${isCorrect
+                                        })() }), !userAnswer && (_jsxs("div", { className: "mt-4 space-y-2", children: [_jsx("button", { type: "button", onClick: handleSubmitCloze, disabled: clozeAnswers.some((a) => !a || !a.trim()) || answerMutation.isPending, className: "inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60", children: "Submit Answer" }), _jsxs("p", { className: "text-xs text-slate-400", children: ["Filled: ", clozeAnswers.filter(a => a && a.trim()).length, " / ", clozeBlanksCount] })] })), userAnswer ? (_jsx("div", { className: "mt-4 space-y-2", children: answerMutation.isPending && !isReviewMode ? (_jsx("div", { className: "rounded-2xl bg-brand-50/50 px-4 py-3 text-sm dark:bg-brand-900/10", children: _jsxs("div", { className: "flex items-center gap-2 text-brand-600 dark:text-brand-400", children: [_jsxs("svg", { className: "size-4 animate-spin", fill: "none", viewBox: "0 0 24 24", children: [_jsx("circle", { className: "opacity-25", cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "4" }), _jsx("path", { className: "opacity-75", fill: "currentColor", d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })] }), _jsx("span", { className: "font-medium", children: "Checking your answer with AI..." })] }) })) : (_jsxs(_Fragment, { children: [_jsx("div", { className: "flex items-center justify-between", children: _jsx("span", { className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${llmFeedback
+                                                            ? "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300"
+                                                            : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`, children: llmFeedback ? (_jsxs(_Fragment, { children: [_jsx("svg", { className: "size-3.5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 10V3L4 14h7v7l9-11h-7z" }) }), "AI Generated"] })) : (_jsxs(_Fragment, { children: [_jsx("svg", { className: "size-3.5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" }) }), "Exact Match"] })) }) }), llmFeedback ? (_jsxs("div", { className: `rounded-2xl px-4 py-3 text-sm ${answerMutation.data?.is_correct
                                                         ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: _jsxs("p", { children: [_jsxs("span", { className: "font-semibold", children: ["Blank ", idx + 1, ":"] }), " ", userAns, isCorrect ? " ✓" : ` ✗ (Correct: ${correctAnswers.join(", ")})`] }) }, idx));
-                                            })) : (_jsx("p", { className: "text-sm text-rose-600", children: "Error: Missing cloze_data or blanks" }))] })) : null] }) })), _jsxs("div", { className: "flex items-center justify-between text-xs text-slate-400", children: [_jsx("button", { type: "button", onClick: () => setFlipped((prev) => !prev), className: "text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300", children: flipped
+                                                        : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: [_jsxs("p", { className: "font-semibold", children: ["Your answer: ", clozeAnswers.join(", ")] }), _jsx("p", { className: "mt-2", children: llmFeedback })] })) : currentCard.cloze_data && currentCard.cloze_data.blanks ? (currentCard.cloze_data.blanks.map((blank, idx) => {
+                                                    const userAns = clozeAnswers[idx];
+                                                    const correctAnswers = Array.isArray(blank.answer) ? blank.answer : [blank.answer];
+                                                    const isCorrect = correctAnswers.some((ans) => normalize(ans) === normalize(userAns));
+                                                    return (_jsx("div", { className: `rounded-2xl px-4 py-3 text-sm ${isCorrect
+                                                            ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                                            : "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"}`, children: _jsxs("p", { children: [_jsxs("span", { className: "font-semibold", children: ["Blank ", idx + 1, ":"] }), " ", userAns, isCorrect ? " ✓" : ` ✗ (Correct: ${correctAnswers.join(", ")})`] }) }, idx));
+                                                })) : (_jsx("p", { className: "text-sm text-rose-600", children: "Error: Missing cloze_data or blanks" }))] })) })) : null] }) })), _jsxs("div", { className: "flex items-center justify-between text-xs text-slate-400", children: [_jsx("button", { type: "button", onClick: () => setFlipped((prev) => !prev), className: "text-sm font-medium text-brand-600 hover:text-brand-500 dark:text-brand-300", children: flipped
                                         ? isMultipleChoice || isShortAnswer || isCloze
                                             ? "Hide explanation"
                                             : "Hide answer"

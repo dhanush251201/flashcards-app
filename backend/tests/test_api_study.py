@@ -340,3 +340,79 @@ class TestSessionStatistics:
         assert data["total_responses"] == 2
         assert data["correct_count"] == 1
         assert data["incorrect_count"] == 1
+
+
+@pytest.mark.integration
+class TestActivityData:
+    """Test GET /api/v1/study/activity endpoint."""
+
+    def test_get_activity_empty(self, client: TestClient, test_user_token):
+        """Test activity endpoint when user has no completed sessions."""
+        response = client.get(
+            "/api/v1/study/activity?days=7",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 7  # Should return 7 days of data
+        # All counts should be 0 for new user
+        for item in data:
+            assert "date" in item
+            assert "count" in item
+            assert item["count"] == 0
+
+    def test_get_activity_with_completed_sessions(self, client: TestClient, test_deck, test_user_token, db):
+        """Test activity endpoint with completed quiz sessions."""
+        from app.models import QuizSession
+        from app.models.enums import QuizMode, QuizStatus
+        from datetime import datetime, timezone
+
+        # Create completed quiz sessions
+        sessions = [
+            QuizSession(
+                user_id=1,  # test_user
+                deck_id=test_deck.id,
+                mode=QuizMode.PRACTICE,
+                status=QuizStatus.COMPLETED,
+                started_at=datetime.now(tz=timezone.utc),
+            ),
+            QuizSession(
+                user_id=1,
+                deck_id=test_deck.id,
+                mode=QuizMode.REVIEW,
+                status=QuizStatus.COMPLETED,
+                started_at=datetime.now(tz=timezone.utc),
+            ),
+        ]
+        for session in sessions:
+            db.add(session)
+        db.commit()
+
+        response = client.get(
+            "/api/v1/study/activity?days=7",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 7
+        # At least one day should have count of 2
+        total_count = sum(item["count"] for item in data)
+        assert total_count == 2
+
+    def test_get_activity_no_auth(self, client: TestClient):
+        """Test activity endpoint requires authentication."""
+        response = client.get("/api/v1/study/activity")
+        assert response.status_code == 401
+
+    def test_get_activity_custom_days(self, client: TestClient, test_user_token):
+        """Test activity endpoint with custom days parameter."""
+        response = client.get(
+            "/api/v1/study/activity?days=14",
+            headers={"Authorization": f"Bearer {test_user_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 14  # Should return 14 days of data

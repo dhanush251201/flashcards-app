@@ -8,13 +8,10 @@ import { DeckCard } from "@/components/decks/DeckCard";
 import { apiClient } from "@/lib/apiClient";
 import type { DeckSummary, DueReviewCard, DeckDetail } from "@/types/api";
 
-const activityHeatmap = Array.from({ length: 7 }, (_, index) => {
-  const date = dayjs().subtract(index, "day");
-  return {
-    date: date.format("YYYY-MM-DD"),
-    count: Math.floor(Math.random() * 20)
-  };
-});
+interface ActivityData {
+  date: string;
+  count: number;
+}
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -39,6 +36,14 @@ export const DashboardPage = () => {
     queryKey: ["due-review"],
     queryFn: async () => {
       const { data } = await apiClient.get<DueReviewCard[]>("/study/reviews/due");
+      return data;
+    }
+  });
+
+  const { data: activityData = [] } = useQuery({
+    queryKey: ["activity"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ActivityData[]>("/study/activity?days=7");
       return data;
     }
   });
@@ -172,7 +177,7 @@ export const DashboardPage = () => {
               <span className="text-xs text-slate-400">7 days</span>
             </div>
             <div className="space-y-2">
-              {activityHeatmap.reverse().map((entry) => (
+              {activityData.map((entry) => (
                 <div key={entry.date} className="flex items-center gap-3">
                   <div className="w-12 text-xs text-slate-500">
                     {dayjs(entry.date).format("ddd")}

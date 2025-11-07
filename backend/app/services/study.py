@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Optional, Dict, Any
 import json
 
 from fastapi import HTTPException, status
@@ -10,6 +10,7 @@ from ..models import Card, QuizResponse, QuizSession, SRSReview, User, UserDeckP
 from ..models.enums import CardType, QuizMode, QuizStatus
 from ..schemas.study import DueReviewCard, StudyAnswerCreate, StudySessionCreate
 from . import streak as streak_service
+from .llm_service import llm_service
 
 
 def create_session(db: Session, user: User, payload: StudySessionCreate) -> QuizSession:
@@ -160,21 +161,92 @@ def _check_answer_correctness(card: Card, user_answer: str | None) -> bool:
     return False
 
 
-def record_answer(
+async def _check_answer_with_llm(card: Card, user_answer: str | None, user: User) -> Optional[Dict[str, Any]]:
+    """
+    Use LLM to check answer for SHORT_ANSWER and CLOZE type cards.
+
+    Returns:
+        Dict with 'is_correct' and 'feedback' keys, or None if LLM unavailable
+    """
+    from loguru import logger
+
+    logger.info(f"_check_answer_with_llm called for card type: {card.type}")
+
+    if not user_answer:
+        logger.warning("No user answer provided")
+        return None
+
+    # Prepare the question and expected answer based on card type
+    question = card.prompt
+    expected_answer = card.answer
+
+    # For cloze cards, we need to extract the expected answers from cloze_data
+    if card.type == CardType.CLOZE and card.cloze_data:
+        blanks = card.cloze_data.get("blanks", [])
+        expected_answers = [blank.get("answer") for blank in blanks if blank.get("answer")]
+        if expected_answers:
+            expected_answer = ", ".join(str(ans) for ans in expected_answers)
+
+    logger.info(f"Calling LLM service to check answer. User has OpenAI key: {bool(user.openai_api_key)}")
+
+    # Call LLM service
+    try:
+        result = await llm_service.check_answer(
+            question=question,
+            expected_answer=expected_answer,
+            user_answer=user_answer,
+            user=user
+        )
+        logger.info(f"LLM service returned: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Exception in _check_answer_with_llm: {str(e)}")
+        # If LLM fails, return None to fallback to exact matching
+        return None
+
+
+async def record_answer(
     db: Session,
     session: QuizSession,
     card: Card,
     user: User,
     answer_in: StudyAnswerCreate,
-) -> QuizResponse:
+) -> tuple[QuizResponse, Optional[str]]:
+    """
+    Record a user's answer to a card.
+
+    Returns:
+        Tuple of (QuizResponse, llm_feedback)
+    """
+    from loguru import logger
+
     is_correct: bool | None = None
     quality = answer_in.quality
+    llm_feedback: Optional[str] = None
+
+    logger.info(f"record_answer: session mode={session.mode}, card type={card.type}")
 
     # Auto-grade for PRACTICE and EXAM modes with supported card types
-    if session.mode == QuizMode.PRACTICE and card.type in [CardType.MULTIPLE_CHOICE, CardType.SHORT_ANSWER, CardType.CLOZE]:
-        is_correct = _check_answer_correctness(card, answer_in.user_answer)
-    elif session.mode == QuizMode.EXAM:
-        is_correct = _check_answer_correctness(card, answer_in.user_answer)
+    if session.mode in [QuizMode.PRACTICE, QuizMode.EXAM] and card.type in [CardType.MULTIPLE_CHOICE, CardType.SHORT_ANSWER, CardType.CLOZE]:
+        logger.info(f"Auto-grading for {session.mode} mode")
+        # Try LLM-based checking first for SHORT_ANSWER and CLOZE
+        if card.type in [CardType.SHORT_ANSWER, CardType.CLOZE]:
+            logger.info(f"Attempting LLM check for {card.type}")
+            llm_result = await _check_answer_with_llm(card, answer_in.user_answer, user)
+            if llm_result:
+                is_correct = llm_result.get("is_correct")
+                llm_feedback = llm_result.get("feedback")
+                logger.info(f"LLM check successful: is_correct={is_correct}, has_feedback={bool(llm_feedback)}")
+            else:
+                logger.info("LLM check returned None, falling back to exact matching")
+                # Fallback to exact matching
+                is_correct = _check_answer_correctness(card, answer_in.user_answer)
+        else:
+            # For multiple choice, use exact matching
+            logger.info("Using exact matching for multiple choice")
+            is_correct = _check_answer_correctness(card, answer_in.user_answer)
+    else:
+        logger.info(f"Not auto-grading: mode={session.mode}, card_type={card.type}")
 
     response = QuizResponse(
         session_id=session.id,
@@ -193,7 +265,7 @@ def record_answer(
 
     db.commit()
     db.refresh(response)
-    return response
+    return response, llm_feedback
 
 
 def _update_progress(db: Session, user: User, deck_id: int) -> None:
@@ -274,3 +346,46 @@ def get_session_statistics(db: Session, session: QuizSession) -> dict:
         "incorrect_count": result.incorrect or 0,
         "unanswered_count": result.unanswered or 0,
     }
+
+
+def get_activity_data(db: Session, user: User, days: int = 7) -> List[dict]:
+    """
+    Get quiz activity data for the past N days.
+
+    Returns a list of dicts with date and count of completed quiz sessions.
+    """
+    from sqlalchemy import cast, Date
+
+    # Calculate the start date (N days ago)
+    start_date = datetime.now(tz=timezone.utc) - timedelta(days=days - 1)
+    start_of_day = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Query completed quiz sessions grouped by date
+    result = db.exec(
+        select(
+            cast(QuizSession.started_at, Date).label("date"),
+            func.count(QuizSession.id).label("count")
+        )
+        .where(
+            QuizSession.user_id == user.id,
+            QuizSession.status == QuizStatus.COMPLETED,
+            QuizSession.started_at >= start_of_day
+        )
+        .group_by(cast(QuizSession.started_at, Date))
+        .order_by(cast(QuizSession.started_at, Date))
+    ).all()
+
+    # Create a dict for easy lookup
+    activity_dict = {str(row.date): row.count for row in result}
+
+    # Generate data for all days in the range, filling in 0 for days with no activity
+    activity_data = []
+    for i in range(days):
+        date = (datetime.now(tz=timezone.utc) - timedelta(days=days - 1 - i)).date()
+        date_str = str(date)
+        activity_data.append({
+            "date": date_str,
+            "count": activity_dict.get(date_str, 0)
+        })
+
+    return activity_data

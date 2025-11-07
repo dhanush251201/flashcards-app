@@ -6,6 +6,7 @@ from ...db.session import get_db
 from ...models import Card, QuizSession, User
 from ...schemas.common import Message
 from ...schemas.study import (
+    ActivityData,
     DueReviewCard,
     SessionStatistics,
     StudyAnswerCreate,
@@ -40,7 +41,7 @@ def read_study_session(
 
 
 @router.post("/sessions/{session_id}/answer", response_model=StudyAnswerRead)
-def submit_answer(
+async def submit_answer(
     session_id: int,
     payload: StudyAnswerCreate,
     current_user: User = Depends(get_current_active_user),
@@ -50,8 +51,13 @@ def submit_answer(
     card = db.get(Card, payload.card_id)
     if not card or card.deck_id != session.deck_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not part of session deck")
-    response = study_service.record_answer(db, session, card, current_user, payload)
-    return StudyAnswerRead.model_validate(response)
+    response, llm_feedback = await study_service.record_answer(db, session, card, current_user, payload)
+
+    # Create response dict with LLM feedback
+    response_dict = StudyAnswerRead.model_validate(response).model_dump()
+    response_dict["llm_feedback"] = llm_feedback
+
+    return StudyAnswerRead(**response_dict)
 
 
 @router.post("/sessions/{session_id}/finish", response_model=StudySessionRead)
@@ -82,4 +88,15 @@ def get_due_reviews(
     db: Session = Depends(get_db),
 ) -> list[DueReviewCard]:
     return study_service.due_reviews(db, current_user)
+
+
+@router.get("/activity", response_model=list[ActivityData])
+def get_activity(
+    days: int = 7,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> list[ActivityData]:
+    """Get quiz activity data for the past N days (default 7)."""
+    activity_data = study_service.get_activity_data(db, current_user, days)
+    return [ActivityData(**item) for item in activity_data]
 
