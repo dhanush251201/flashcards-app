@@ -275,7 +275,7 @@ VALID_SHORT_ANSWER_CARD = {
 
 VALID_CLOZE_CARD = {
     "type": "cloze",
-    "prompt": "Python was created by {{c1::Guido van Rossum}} in {{c2::1991}}.",
+    "prompt": "Python was created by [BLANK] Guido van Rossum in [BLANK] 1991.",
     "answer": "Guido van Rossum, 1991",
     "cloze_data": {
         "blanks": [

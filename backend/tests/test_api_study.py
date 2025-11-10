@@ -369,20 +369,23 @@ class TestActivityData:
         from datetime import datetime, timezone
 
         # Create completed quiz sessions
+        now_naive = datetime.now(tz=timezone.utc).replace(tzinfo=None)
         sessions = [
             QuizSession(
                 user_id=1,  # test_user
                 deck_id=test_deck.id,
                 mode=QuizMode.PRACTICE,
                 status=QuizStatus.COMPLETED,
-                started_at=datetime.now(tz=timezone.utc),
+                started_at=now_naive,
+                ended_at=now_naive,
             ),
             QuizSession(
                 user_id=1,
                 deck_id=test_deck.id,
                 mode=QuizMode.REVIEW,
                 status=QuizStatus.COMPLETED,
-                started_at=datetime.now(tz=timezone.utc),
+                started_at=now_naive,
+                ended_at=now_naive,
             ),
         ]
         for session in sessions:

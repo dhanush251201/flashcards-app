@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { AcademicCapIcon, ClockIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { AcademicCapIcon, ClockIcon, PencilIcon, SparklesIcon } from "@heroicons/react/24/outline";
 
 import { Flashcard } from "@/components/cards/Flashcard";
 import { apiClient } from "@/lib/apiClient";
@@ -84,6 +84,7 @@ export const DeckDetailPage = () => {
   const user = useAuthStore((state) => state.user);
   const [isCardModalOpen, setCardModalOpen] = useState(false);
   const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isEditDeckModalOpen, setEditDeckModalOpen] = useState(false);
   const [cardFormError, setCardFormError] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<CardModel | null>(null);
   const [cardForm, setCardForm] = useState({
@@ -94,6 +95,13 @@ export const DeckDetailPage = () => {
     options: "",
     clozeAnswers: ""
   });
+  const [deckForm, setDeckForm] = useState({
+    title: "",
+    description: "",
+    is_public: true,
+    tag_names: [] as string[]
+  });
+  const [tagInput, setTagInput] = useState("");
 
   const deckQuery = useQuery({
     queryKey: ["deck", deckId],
@@ -177,6 +185,42 @@ export const DeckDetailPage = () => {
       navigate("/app/dashboard");
     }
   });
+
+  const updateDeckMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.put(`/decks/${deckId}`, deckForm);
+      return data;
+    },
+    onSuccess: () => {
+      setEditDeckModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["deck", deckId] });
+      queryClient.invalidateQueries({ queryKey: ["decks"] });
+    }
+  });
+
+  const handleEditDeckClick = () => {
+    if (!deck) return;
+    setDeckForm({
+      title: deck.title,
+      description: deck.description || "",
+      is_public: deck.is_public,
+      tag_names: deck.tag_names || []
+    });
+    setTagInput("");
+    setEditDeckModalOpen(true);
+  };
+
+  const handleAddTag = () => {
+    const trimmedTag = tagInput.trim();
+    if (trimmedTag && !deckForm.tag_names.includes(trimmedTag)) {
+      setDeckForm({ ...deckForm, tag_names: [...deckForm.tag_names, trimmedTag] });
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setDeckForm({ ...deckForm, tag_names: deckForm.tag_names.filter((t) => t !== tagToRemove) });
+  };
 
   const handleCardSubmit = () => {
     if (!cardForm.prompt.trim() || !cardForm.answer.trim()) {
@@ -292,13 +336,23 @@ export const DeckDetailPage = () => {
               Created {new Date(deck.created_at).toLocaleDateString()} • Last updated {new Date(deck.updated_at).toLocaleDateString()}
             </p>
             {deck.owner_user_id === user?.id && (
-              <button
-                type="button"
-                onClick={() => setDeleteModalOpen(true)}
-                className="mt-2 inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
-              >
-                Delete Deck
-              </button>
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={handleEditDeckClick}
+                  className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                >
+                  <PencilIcon className="size-4" />
+                  Edit Deck
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
+                >
+                  Delete Deck
+                </button>
+              </div>
             )}
           </div>
           <div className="flex flex-col gap-4 rounded-3xl bg-slate-100/80 p-6 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 min-w-[280px]">
@@ -589,6 +643,134 @@ export const DeckDetailPage = () => {
           </div>
         </div>
       ) : null}
+
+      {isEditDeckModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-xl dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-semibold text-slate-900 dark:text-white mb-6">Edit Deck</h3>
+
+            <div className="space-y-6">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Deck Title *
+                </label>
+                <input
+                  type="text"
+                  value={deckForm.title}
+                  onChange={(e) => setDeckForm({ ...deckForm, title: e.target.value })}
+                  placeholder="Enter deck title"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={deckForm.description}
+                  onChange={(e) => setDeckForm({ ...deckForm, description: e.target.value })}
+                  placeholder="Enter deck description"
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Tags
+                </label>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                    placeholder="Add a tag (press Enter)"
+                    className="flex-1 rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600"
+                  >
+                    Add
+                  </button>
+                </div>
+                {deckForm.tag_names.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {deckForm.tag_names.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Public/Private Toggle */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="is_public"
+                  checked={deckForm.is_public}
+                  onChange={(e) => setDeckForm({ ...deckForm, is_public: e.target.checked })}
+                  className="size-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-700"
+                />
+                <label htmlFor="is_public" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Make this deck public
+                </label>
+              </div>
+            </div>
+
+            {updateDeckMutation.isError && (
+              <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300">
+                Failed to update the deck. Please try again.
+              </p>
+            )}
+
+            <div className="mt-8 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditDeckModalOpen(false)}
+                disabled={updateDeckMutation.isPending}
+                className="rounded-full border border-slate-200 px-6 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800 dark:border-slate-700 dark:text-slate-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!deckForm.title.trim()) return;
+                  updateDeckMutation.mutate();
+                }}
+                disabled={updateDeckMutation.isPending || !deckForm.title.trim()}
+                className="rounded-full bg-brand-500 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {updateDeckMutation.isPending ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">

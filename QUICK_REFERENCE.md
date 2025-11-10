@@ -27,7 +27,7 @@ curl -X POST http://localhost:8000/api/v1/ai-decks/create-deck \
 | **basic** | Simple Q&A | Q: What is Python? A: A programming language |
 | **multiple_choice** | 4 options, 1 correct | Q: What is 2+2? A: 4, Options: [3,4,5,6] |
 | **short_answer** | Open-ended | Q: Explain recursion A: Function calling itself |
-| **cloze** | Fill-in-blank | Q: Python uses {{c1::indentation}} |
+| **cloze** | Fill-in-blank | Q: Python uses [BLANK] |
 
 ---
 
@@ -43,7 +43,7 @@ curl -X POST http://localhost:8000/api/v1/ai-decks/create-deck \
 - ✓ Options unique
 
 ### Cloze
-- ✓ Contains `{{c1::...}}`
+- ✓ Contains `[BLANK]`
 - ✓ Has cloze_data.blanks
 - ✓ Blanks match prompt
 

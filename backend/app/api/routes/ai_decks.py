@@ -195,10 +195,17 @@ async def create_deck_from_generated_cards(
                         status_code=400,
                         detail=f"Card {i + 1}: Cloze cards must have cloze_data with blanks"
                     )
-                if "{{c" not in prompt:
+                if "[BLANK]" not in prompt.upper():
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Card {i + 1}: Cloze cards must contain at least one blank"
+                        detail=f"Card {i + 1}: Cloze cards must contain at least one [BLANK]"
+                    )
+                # Validate that number of [BLANK]s matches number of blanks in cloze_data
+                blank_count = prompt.upper().count("[BLANK]")
+                if blank_count != len(cloze_data["blanks"]):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Card {i + 1}: Number of [BLANK]s ({blank_count}) must match number of answers in cloze_data ({len(cloze_data['blanks'])})"
                     )
                 card_data["cloze_data"] = cloze_data
 

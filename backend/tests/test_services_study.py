@@ -339,50 +339,50 @@ class TestSessionManagement:
 class TestRecordAnswer:
     """Test recording quiz answers."""
 
-    def test_record_answer_review_mode_with_quality(self, db: Session, test_user: User, quiz_session, test_cards):
+    async def test_record_answer_review_mode_with_quality(self, db: Session, test_user: User, quiz_session, test_cards):
         quiz_session.mode = QuizMode.REVIEW
         db.add(quiz_session)
         db.commit()
 
         card = test_cards[0]
         answer_in = StudyAnswerCreate(card_id=card.id, user_answer="4", quality=4)
-        response = record_answer(db, quiz_session, card, test_user, answer_in)
+        response = await record_answer(db, quiz_session, card, test_user, answer_in)
 
         assert response.id is not None
         assert response.session_id == quiz_session.id
         assert response.card_id == card.id
         assert response.quality == 4
 
-    def test_record_answer_practice_mode_auto_grades(self, db: Session, test_user: User, quiz_session, test_cards):
+    async def test_record_answer_practice_mode_auto_grades(self, db: Session, test_user: User, quiz_session, test_cards):
         quiz_session.mode = QuizMode.PRACTICE
         db.add(quiz_session)
         db.commit()
 
         card = test_cards[0]  # Multiple choice card
         answer_in = StudyAnswerCreate(card_id=card.id, user_answer="4")
-        response = record_answer(db, quiz_session, card, test_user, answer_in)
+        response = await record_answer(db, quiz_session, card, test_user, answer_in)
 
         assert response.is_correct is True
 
-    def test_record_answer_exam_mode_auto_grades(self, db: Session, test_user: User, quiz_session, test_cards):
+    async def test_record_answer_exam_mode_auto_grades(self, db: Session, test_user: User, quiz_session, test_cards):
         quiz_session.mode = QuizMode.EXAM
         db.add(quiz_session)
         db.commit()
 
         card = test_cards[1]  # Short answer card
         answer_in = StudyAnswerCreate(card_id=card.id, user_answer="Paris")
-        response = record_answer(db, quiz_session, card, test_user, answer_in)
+        response = await record_answer(db, quiz_session, card, test_user, answer_in)
 
         assert response.is_correct is True
 
-    def test_record_answer_creates_srs_review(self, db: Session, test_user: User, quiz_session, test_cards):
+    async def test_record_answer_creates_srs_review(self, db: Session, test_user: User, quiz_session, test_cards):
         quiz_session.mode = QuizMode.REVIEW
         db.add(quiz_session)
         db.commit()
 
         card = test_cards[0]
         answer_in = StudyAnswerCreate(card_id=card.id, user_answer="4", quality=4)
-        record_answer(db, quiz_session, card, test_user, answer_in)
+        await record_answer(db, quiz_session, card, test_user, answer_in)
 
         # Check SRS review was created
         from sqlmodel import select

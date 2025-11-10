@@ -42,7 +42,7 @@ Guidelines for each type:
 - BASIC: Simple Q&A for definitions, facts, concepts
 - MULTIPLE_CHOICE: Include 4 plausible options with one correct answer. Distractors should be related but clearly incorrect.
 - SHORT_ANSWER: Test deeper understanding with questions requiring constructed responses
-- CLOZE: Create sentences with missing key terms. Use {{c1::text}} syntax for blanks.
+- CLOZE: Create sentences with missing key terms. Use [BLANK] for each blank (not {{c1::text}}).
 
 General guidelines:
 - Create a balanced mix of all 4 question types
@@ -77,7 +77,7 @@ You must respond ONLY with valid JSON in the following format:
     },
     {
       "type": "cloze",
-      "prompt": "The {{c1::mitochondria}} is known as the powerhouse of the cell because it produces {{c2::ATP}}.",
+      "prompt": "The [BLANK] is known as the powerhouse of the cell because it produces [BLANK].",
       "answer": "mitochondria, ATP",
       "cloze_data": {
         "blanks": [
@@ -92,7 +92,7 @@ You must respond ONLY with valid JSON in the following format:
 
 IMPORTANT:
 - For MULTIPLE_CHOICE, the "answer" field must be the exact correct option text (one of the items in "options")
-- For CLOZE, use {{c1::text}}, {{c2::text}} syntax in the prompt. The answer should be comma-separated values.
+- For CLOZE, use [BLANK] for each blank in the prompt (in order). The answer should be comma-separated values. The cloze_data.blanks array should contain objects with "answer" field for each blank.
 - Ensure a good mix of all 4 types
 DO NOT include any text before or after the JSON. The response must be valid JSON that can be parsed."""
 

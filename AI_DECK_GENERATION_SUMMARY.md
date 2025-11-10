@@ -8,7 +8,7 @@ The AI deck generation feature now supports **4 different question types**:
 1. **Basic** - Traditional Q&A pairs
 2. **Multiple Choice** - Questions with 4 options and one correct answer
 3. **Short Answer** - Open-ended questions requiring constructed responses
-4. **Cloze** - Fill-in-the-blank style questions using `{{c1::text}}` syntax
+4. **Cloze** - Fill-in-the-blank style questions using `[BLANK] text` syntax
 
 ### Complete Stack Implementation
 

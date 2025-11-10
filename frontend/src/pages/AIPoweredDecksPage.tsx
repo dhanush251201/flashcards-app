@@ -191,8 +191,8 @@ export default function AIPoweredDecksPage() {
     }
 
     if (card.type === "cloze") {
-      if (!card.prompt.includes("{{c")) {
-        return "Cloze cards must contain at least one blank ({{c1::text}})";
+      if (!card.prompt.toUpperCase().includes("[BLANK]")) {
+        return "Cloze cards must contain at least one [BLANK]";
       }
       if (!card.cloze_data || !card.cloze_data.blanks || card.cloze_data.blanks.length === 0) {
         return "Cloze cards must have cloze_data with blanks";
@@ -591,7 +591,7 @@ export default function AIPoweredDecksPage() {
                         />
                         {card.type === "cloze" && (
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Use {`{{c1::text}}, {{c2::text}}`} format for blanks
+                            Use [BLANK] for each blank in the sentence
                           </p>
                         )}
                       </div>

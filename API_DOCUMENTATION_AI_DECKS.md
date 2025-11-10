@@ -101,7 +101,7 @@ Upload a document and generate flashcards using AI.
     },
     {
       "type": "cloze",
-      "prompt": "Python uses {{c1::indentation}} to define code blocks instead of {{c2::braces}}.",
+      "prompt": "Python uses [BLANK] indentation to define code blocks instead of [BLANK] braces.",
       "answer": "indentation, braces",
       "cloze_data": {
         "blanks": [
@@ -263,7 +263,7 @@ Create a new flashcard deck from AI-generated cards after review/editing.
    - Options must be unique
 
 3. **Cloze Cards:**
-   - Prompt must contain at least one `{{c1::text}}` format blank
+   - Prompt must contain at least one `[BLANK] text` format blank
    - Must have cloze_data with blanks array
    - Each blank must have an answer
 
@@ -351,7 +351,7 @@ Fill-in-the-blank style question using Anki-style syntax.
 ```json
 {
   "type": "cloze",
-  "prompt": "The {{c1::mitochondria}} is the powerhouse of the {{c2::cell}}.",
+  "prompt": "The [BLANK] mitochondria is the powerhouse of the [BLANK] cell.",
   "answer": "mitochondria, cell",
   "cloze_data": {
     "blanks": [
@@ -364,12 +364,12 @@ Fill-in-the-blank style question using Anki-style syntax.
 ```
 
 **Cloze Syntax:**
-- `{{c1::text}}` - First blank
-- `{{c2::text}}` - Second blank
-- `{{c3::text}}` - Third blank, etc.
+- `[BLANK] text` - First blank
+- `[BLANK] text` - Second blank
+- `{{c3::text` - Third blank, etc.
 
 **Requirements:**
-- Prompt must contain at least one `{{c1::...}}` blank
+- Prompt must contain at least one `[BLANK] ...` blank
 - cloze_data.blanks must match the blanks in prompt
 - Blanks are numbered sequentially starting from c1
 

@@ -16,7 +16,7 @@ The AI flashcard generation feature now supports **4 different question types** 
 - Updated system prompt to instruct the AI to generate all 4 question types
 - Enhanced validation logic to handle type-specific fields:
   - **Multiple Choice**: Validates options array (minimum 2 options), ensures answer is in options
-  - **Cloze**: Validates cloze_data structure and {{c1::text}} format in prompt
+  - **Cloze**: Validates cloze_data structure and [BLANK] format in prompt
 - Supports both OpenAI and Ollama providers
 
 #### API Routes (`backend/app/api/routes/ai_decks.py`)
@@ -41,7 +41,7 @@ The AI flashcard generation feature now supports **4 different question types** 
 - Card type statistics display
 - Enhanced card editing interface:
   - **Multiple Choice**: Editable options with correct answer indicator
-  - **Cloze**: Special formatting hints for {{c1::text}} syntax
+  - **Cloze**: Special formatting hints for [BLANK] syntax
 - Visual distinction in review mode:
   - Multiple choice options highlighted with correct answer in green
   - Clear separation of question types with badges
@@ -63,7 +63,7 @@ The AI flashcard generation feature now supports **4 different question types** 
 ```json
 {
   "type": "cloze",
-  "prompt": "The {{c1::mitochondria}} is the powerhouse of the {{c2::cell}}.",
+  "prompt": "The [BLANK] is the powerhouse of the [BLANK].",
   "answer": "mitochondria, cell",
   "cloze_data": {
     "blanks": [
@@ -104,7 +104,7 @@ The AI flashcard generation feature now supports **4 different question types** 
   - Answer must be one of the options
   - Options must be unique
 - Cloze:
-  - Prompt must contain at least one {{c1::text}} format blank
+  - Prompt must contain at least one [BLANK]
   - Must have cloze_data with blanks array
 
 ### Backend Validation
@@ -135,7 +135,7 @@ The AI flashcard generation feature now supports **4 different question types** 
 - All validation is performed both client-side and server-side
 - Color coding uses Tailwind CSS with dark mode support
 - LLM prompts include explicit examples for each question type
-- Cloze format follows Anki-style {{c1::text}} syntax
+- Cloze format uses [BLANK] placeholders for fill-in-the-blank questions
 
 ## Future Enhancements
 

@@ -1,0 +1,488 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.5, pytest-8.1.1, pluggy-1.6.0 -- D:\D\PENN\CDA\flashcards-app\backend\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\D\PENN\CDA\flashcards-app\backend
+configfile: pytest.ini
+plugins: anyio-4.3.0, Faker-24.4.0, asyncio-0.23.5, cov-5.0.0, mock-3.14.0
+asyncio: mode=Mode.STRICT
+collecting ... collected 197 items
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_basic_card PASSED [  0%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_multiple_choice_card PASSED [  1%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_short_answer_card PASSED [  1%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_cloze_card PASSED [  2%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_card_missing_prompt PASSED [  2%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_card_missing_answer PASSED [  3%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_multiple_choice_answer_not_in_options PASSED [  3%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_multiple_choice_insufficient_options PASSED [  4%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_cloze_missing_blanks PASSED [  4%]
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_cloze_missing_cloze_data PASSED [  5%]
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_content_length_validation PASSED [  5%]
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_num_cards_validation PASSED [  6%]
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_content_truncation PASSED [  6%]
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_system_prompt_contains_all_types PASSED [  7%]
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_system_prompt_has_json_format PASSED [  7%]
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_user_prompt_includes_num_cards PASSED [  8%]
+tests/test_ai_decks.py::TestMockedLLMGeneration::test_openai_generation_success PASSED [  8%]
+tests/test_ai_decks.py::TestMockedLLMGeneration::test_openai_generation_invalid_json PASSED [  9%]
+tests/test_ai_decks.py::TestMockedLLMGeneration::test_ollama_timeout_handling FAILED [  9%]
+tests/test_ai_decks.py::TestMockedLLMGeneration::test_card_type_defaults_to_basic FAILED [ 10%]
+tests/test_ai_decks.py::TestMockedLLMGeneration::test_invalid_multiple_choice_cards_skipped PASSED [ 10%]
+tests/test_ai_decks.py::TestCardTypeMixing::test_all_card_types_represented PASSED [ 11%]
+tests/test_ai_decks.py::TestCardTypeMixing::test_mixed_cards_all_valid PASSED [ 11%]
+tests/test_ai_decks.py::TestAPIValidation::test_validate_card_in_deck_creation PASSED [ 12%]
+tests/test_ai_decks.py::TestAPIValidation::test_multiple_choice_validation_in_api PASSED [ 12%]
+tests/test_ai_decks.py::TestAPIValidation::test_cloze_validation_in_api PASSED [ 13%]
+tests/test_api_auth.py::TestSignup::test_signup_success PASSED           [ 13%]
+tests/test_api_auth.py::TestSignup::test_signup_duplicate_email PASSED   [ 14%]
+tests/test_api_auth.py::TestSignup::test_signup_invalid_email PASSED     [ 14%]
+tests/test_api_auth.py::TestSignup::test_signup_missing_password PASSED  [ 15%]
+tests/test_api_auth.py::TestLogin::test_login_success PASSED             [ 15%]
+tests/test_api_auth.py::TestLogin::test_login_wrong_password PASSED      [ 16%]
+tests/test_api_auth.py::TestLogin::test_login_nonexistent_user PASSED    [ 16%]
+tests/test_api_auth.py::TestLogin::test_login_inactive_user_gets_token PASSED [ 17%]
+tests/test_api_auth.py::TestGetCurrentUser::test_get_current_user_success PASSED [ 17%]
+tests/test_api_auth.py::TestGetCurrentUser::test_get_current_user_no_token PASSED [ 18%]
+tests/test_api_auth.py::TestGetCurrentUser::test_get_current_user_invalid_token PASSED [ 18%]
+tests/test_api_auth.py::TestChangePassword::test_change_password_success PASSED [ 19%]
+tests/test_api_auth.py::TestChangePassword::test_change_password_wrong_current PASSED [ 19%]
+tests/test_api_auth.py::TestChangePassword::test_change_password_no_auth PASSED [ 20%]
+tests/test_api_auth.py::TestRefreshToken::test_refresh_token_success PASSED [ 20%]
+tests/test_api_auth.py::TestRefreshToken::test_refresh_token_invalid PASSED [ 21%]
+tests/test_api_decks.py::TestListDecks::test_list_decks_public_no_auth PASSED [ 21%]
+tests/test_api_decks.py::TestListDecks::test_list_decks_with_search PASSED [ 22%]
+tests/test_api_decks.py::TestListDecks::test_list_decks_with_limit PASSED [ 22%]
+tests/test_api_decks.py::TestListDecks::test_list_decks_excludes_private_without_auth PASSED [ 23%]
+tests/test_api_decks.py::TestListDecks::test_list_decks_includes_all PASSED [ 23%]
+tests/test_api_decks.py::TestReadDeck::test_read_public_deck_no_auth PASSED [ 24%]
+tests/test_api_decks.py::TestReadDeck::test_read_private_deck_no_auth_forbidden PASSED [ 24%]
+tests/test_api_decks.py::TestReadDeck::test_read_private_deck_as_owner PASSED [ 25%]
+tests/test_api_decks.py::TestReadDeck::test_read_nonexistent_deck PASSED [ 25%]
+tests/test_api_decks.py::TestCreateDeck::test_create_deck_no_auth PASSED [ 26%]
+tests/test_api_decks.py::TestCreateDeck::test_create_deck_authenticated PASSED [ 26%]
+tests/test_api_decks.py::TestCreateDeck::test_create_deck_with_cards PASSED [ 27%]
+tests/test_api_decks.py::TestCreateDeck::test_create_deck_validation_error PASSED [ 27%]
+tests/test_api_decks.py::TestUpdateDeck::test_update_deck_as_owner PASSED [ 28%]
+tests/test_api_decks.py::TestUpdateDeck::test_update_deck_not_owner_forbidden PASSED [ 28%]
+tests/test_api_decks.py::TestUpdateDeck::test_update_deck_no_auth PASSED [ 29%]
+tests/test_api_decks.py::TestDeleteDeck::test_delete_deck_as_owner PASSED [ 29%]
+tests/test_api_decks.py::TestDeleteDeck::test_delete_deck_not_owner_forbidden PASSED [ 30%]
+tests/test_api_decks.py::TestDeleteDeck::test_delete_deck_no_auth PASSED [ 30%]
+tests/test_api_decks.py::TestDeleteDeck::test_delete_deck_nonexistent PASSED [ 31%]
+tests/test_api_decks.py::TestDeleteDeck::test_delete_deck_not_owner_not_admin PASSED [ 31%]
+tests/test_api_decks.py::TestDeleteDeck::test_delete_deck_with_cards PASSED [ 32%]
+tests/test_api_decks.py::TestAddCard::test_add_card_as_owner PASSED      [ 32%]
+tests/test_api_decks.py::TestAddCard::test_add_card_cloze_type PASSED    [ 33%]
+tests/test_api_decks.py::TestAddCard::test_add_card_not_owner_forbidden PASSED [ 34%]
+tests/test_api_decks.py::TestAddCard::test_add_card_no_auth PASSED       [ 34%]
+tests/test_api_decks.py::TestEditCard::test_edit_card_as_owner PASSED    [ 35%]
+tests/test_api_decks.py::TestEditCard::test_edit_card_no_auth PASSED     [ 35%]
+tests/test_api_decks.py::TestRemoveCard::test_remove_card_as_owner PASSED [ 36%]
+tests/test_api_decks.py::TestRemoveCard::test_remove_card_no_auth PASSED [ 36%]
+tests/test_api_decks.py::TestRemoveCard::test_remove_nonexistent_card PASSED [ 37%]
+tests/test_api_study.py::TestStartSession::test_start_session_review_mode PASSED [ 37%]
+tests/test_api_study.py::TestStartSession::test_start_session_practice_mode PASSED [ 38%]
+tests/test_api_study.py::TestStartSession::test_start_session_exam_mode PASSED [ 38%]
+tests/test_api_study.py::TestStartSession::test_start_session_no_auth PASSED [ 39%]
+tests/test_api_study.py::TestStartSession::test_start_session_nonexistent_deck PASSED [ 39%]
+tests/test_api_study.py::TestGetSession::test_get_session_success PASSED [ 40%]
+tests/test_api_study.py::TestGetSession::test_get_session_not_owner PASSED [ 40%]
+tests/test_api_study.py::TestGetSession::test_get_session_no_auth PASSED [ 41%]
+tests/test_api_study.py::TestFinishSession::test_finish_session_success PASSED [ 41%]
+tests/test_api_study.py::TestFinishSession::test_finish_session_not_owner PASSED [ 42%]
+tests/test_api_study.py::TestFinishSession::test_finish_session_no_auth PASSED [ 42%]
+tests/test_api_study.py::TestSubmitAnswer::test_submit_answer_review_mode PASSED [ 43%]
+tests/test_api_study.py::TestSubmitAnswer::test_submit_answer_practice_mode_correct PASSED [ 43%]
+tests/test_api_study.py::TestSubmitAnswer::test_submit_answer_practice_mode_incorrect PASSED [ 44%]
+tests/test_api_study.py::TestSubmitAnswer::test_submit_answer_short_answer_type PASSED [ 44%]
+tests/test_api_study.py::TestSubmitAnswer::test_submit_answer_cloze_type PASSED [ 45%]
+tests/test_api_study.py::TestSubmitAnswer::test_submit_answer_no_auth PASSED [ 45%]
+tests/test_api_study.py::TestDueReviews::test_due_reviews_with_due_card PASSED [ 46%]
+tests/test_api_study.py::TestDueReviews::test_due_reviews_empty PASSED   [ 46%]
+tests/test_api_study.py::TestDueReviews::test_due_reviews_no_auth PASSED [ 47%]
+tests/test_api_study.py::TestPracticeModeEndless::test_start_practice_session_endless PASSED [ 47%]
+tests/test_api_study.py::TestSessionStatistics::test_get_session_statistics_empty PASSED [ 48%]
+tests/test_api_study.py::TestSessionStatistics::test_get_session_statistics_with_responses PASSED [ 48%]
+tests/test_api_study.py::TestSessionStatistics::test_get_session_statistics_not_owner PASSED [ 49%]
+tests/test_api_study.py::TestSessionStatistics::test_get_session_statistics_no_auth PASSED [ 49%]
+tests/test_api_study.py::TestSessionStatistics::test_session_statistics_practice_mode PASSED [ 50%]
+tests/test_api_study.py::TestActivityData::test_get_activity_empty PASSED [ 50%]
+tests/test_api_study.py::TestActivityData::test_get_activity_with_completed_sessions FAILED [ 51%]
+tests/test_api_study.py::TestActivityData::test_get_activity_no_auth PASSED [ 51%]
+tests/test_api_study.py::TestActivityData::test_get_activity_custom_days PASSED [ 52%]
+tests/test_api_study.py::TestExamModeCardFiltering::test_exam_mode_excludes_basic_cards PASSED [ 52%]
+tests/test_api_study.py::TestExamModeCardFiltering::test_exam_mode_with_only_basic_cards PASSED [ 53%]
+tests/test_api_study.py::TestExamModeCardFiltering::test_exam_mode_with_mixed_cards PASSED [ 53%]
+tests/test_api_study.py::TestExamModeBatchSubmission::test_exam_mode_batch_submission PASSED [ 54%]
+tests/test_api_study.py::TestExamModeBatchSubmission::test_exam_mode_incorrect_answers PASSED [ 54%]
+tests/test_api_study.py::TestExamModeBatchSubmission::test_exam_mode_partial_submission PASSED [ 55%]
+tests/test_api_study.py::TestLLMAnswerChecking::test_short_answer_exact_match_fallback PASSED [ 55%]
+tests/test_api_study.py::TestLLMAnswerChecking::test_cloze_answer_checking PASSED [ 56%]
+tests/test_api_study.py::TestLLMAnswerChecking::test_cloze_multiple_blanks PASSED [ 56%]
+tests/test_api_study.py::TestLLMAnswerChecking::test_llm_feedback_returned_in_response PASSED [ 57%]
+tests/test_pinned_decks.py::TestPinDeckAPI::test_pin_deck_success PASSED [ 57%]
+tests/test_pinned_decks.py::TestPinDeckAPI::test_unpin_deck_success PASSED [ 58%]
+tests/test_pinned_decks.py::TestPinDeckAPI::test_pin_deck_creates_progress_if_not_exists PASSED [ 58%]
+tests/test_pinned_decks.py::TestPinDeckAPI::test_pin_nonexistent_deck_fails PASSED [ 59%]
+tests/test_pinned_decks.py::TestPinDeckAPI::test_pin_deck_requires_authentication PASSED [ 59%]
+tests/test_pinned_decks.py::TestDeckListWithPinnedStatus::test_list_decks_includes_pinned_status PASSED [ 60%]
+tests/test_pinned_decks.py::TestDeckListWithPinnedStatus::test_list_decks_unpinned_by_default PASSED [ 60%]
+tests/test_pinned_decks.py::TestDeckListWithPinnedStatus::test_list_decks_without_auth_shows_unpinned PASSED [ 61%]
+tests/test_pinned_decks.py::TestDeckListWithPinnedStatus::test_list_decks_different_users_different_pins PASSED [ 61%]
+tests/test_pinned_decks.py::TestPinDeckIntegration::test_pin_deck_persists_across_requests PASSED [ 62%]
+tests/test_quiz_types.py::TestShortAnswerType::test_normalize_answer_strips_whitespace PASSED [ 62%]
+tests/test_quiz_types.py::TestShortAnswerType::test_normalize_answer_lowercases PASSED [ 63%]
+tests/test_quiz_types.py::TestShortAnswerType::test_short_answer_exact_match PASSED [ 63%]
+tests/test_quiz_types.py::TestShortAnswerType::test_short_answer_multiple_acceptable_answers PASSED [ 64%]
+tests/test_quiz_types.py::TestShortAnswerType::test_short_answer_empty_input PASSED [ 64%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_single_blank_correct PASSED [ 65%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_single_blank_incorrect PASSED [ 65%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_multiple_blanks_all_correct PASSED [ 66%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_multiple_blanks_partial_correct PASSED [ 67%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_multiple_acceptable_answers_per_blank PASSED [ 67%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_wrong_number_of_blanks PASSED [ 68%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_empty_input PASSED   [ 68%]
+tests/test_quiz_types.py::TestClozeType::test_cloze_missing_cloze_data PASSED [ 69%]
+tests/test_quiz_types.py::TestMultipleChoiceCompat::test_multiple_choice_correct_answer PASSED [ 69%]
+tests/test_services_study.py::TestNormalizeAnswer::test_normalize_lowercase PASSED [ 70%]
+tests/test_services_study.py::TestNormalizeAnswer::test_normalize_strips_whitespace PASSED [ 70%]
+tests/test_services_study.py::TestNormalizeAnswer::test_normalize_none PASSED [ 71%]
+tests/test_services_study.py::TestNormalizeAnswer::test_normalize_empty PASSED [ 71%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_single_blank_correct PASSED [ 72%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_single_blank_case_insensitive PASSED [ 72%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_multiple_blanks_correct PASSED [ 73%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_multiple_acceptable_answers PASSED [ 73%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_wrong_answer PASSED [ 74%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_wrong_number_of_blanks PASSED [ 74%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_invalid_json PASSED [ 75%]
+tests/test_services_study.py::TestCheckClozeAnswer::test_cloze_no_data PASSED [ 75%]
+tests/test_services_study.py::TestCheckAnswerCorrectness::test_multiple_choice_correct PASSED [ 76%]
+tests/test_services_study.py::TestCheckAnswerCorrectness::test_multiple_choice_incorrect PASSED [ 76%]
+tests/test_services_study.py::TestCheckAnswerCorrectness::test_short_answer_correct PASSED [ 77%]
+tests/test_services_study.py::TestCheckAnswerCorrectness::test_short_answer_case_insensitive PASSED [ 77%]
+tests/test_services_study.py::TestCheckAnswerCorrectness::test_short_answer_with_multiple_valid_answers PASSED [ 78%]
+tests/test_services_study.py::TestCheckAnswerCorrectness::test_empty_answer PASSED [ 78%]
+tests/test_services_study.py::TestSM2Algorithm::test_quality_below_3_resets_interval PASSED [ 79%]
+tests/test_services_study.py::TestSM2Algorithm::test_quality_3_or_above_first_rep PASSED [ 79%]
+tests/test_services_study.py::TestSM2Algorithm::test_quality_3_or_above_second_rep PASSED [ 80%]
+tests/test_services_study.py::TestSM2Algorithm::test_quality_3_or_above_subsequent_reps PASSED [ 80%]
+tests/test_services_study.py::TestSM2Algorithm::test_easiness_adjustment PASSED [ 81%]
+tests/test_services_study.py::TestSM2Algorithm::test_easiness_minimum PASSED [ 81%]
+tests/test_services_study.py::TestSM2Algorithm::test_invalid_quality_raises_error PASSED [ 82%]
+tests/test_services_study.py::TestSM2Algorithm::test_due_date_updated PASSED [ 82%]
+tests/test_services_study.py::TestSessionManagement::test_create_session PASSED [ 83%]
+tests/test_services_study.py::TestSessionManagement::test_get_session_or_404_success PASSED [ 83%]
+tests/test_services_study.py::TestSessionManagement::test_get_session_or_404_not_found PASSED [ 84%]
+tests/test_services_study.py::TestSessionManagement::test_get_session_or_404_wrong_user PASSED [ 84%]
+tests/test_services_study.py::TestSessionManagement::test_finish_session PASSED [ 85%]
+tests/test_services_study.py::TestRecordAnswer::test_record_answer_review_mode_with_quality FAILED [ 85%]
+tests/test_services_study.py::TestRecordAnswer::test_record_answer_practice_mode_auto_grades FAILED [ 86%]
+tests/test_services_study.py::TestRecordAnswer::test_record_answer_exam_mode_auto_grades FAILED [ 86%]
+tests/test_services_study.py::TestRecordAnswer::test_record_answer_creates_srs_review FAILED [ 87%]
+tests/test_services_study.py::TestDueReviews::test_due_reviews_returns_due_cards PASSED [ 87%]
+tests/test_services_study.py::TestDueReviews::test_due_reviews_excludes_future_cards PASSED [ 88%]
+tests/test_services_study.py::TestDueReviews::test_due_reviews_empty_for_new_user PASSED [ 88%]
+tests/test_srs.py::test_sm2_low_quality_resets_interval PASSED           [ 89%]
+tests/test_srs.py::test_sm2_high_quality_increases_interval PASSED       [ 89%]
+tests/test_streak.py::TestStreakService::test_first_activity_sets_streak_to_one PASSED [ 90%]
+tests/test_streak.py::TestStreakService::test_same_day_activity_no_change PASSED [ 90%]
+tests/test_streak.py::TestStreakService::test_consecutive_day_increments_streak PASSED [ 91%]
+tests/test_streak.py::TestStreakService::test_consecutive_days_updates_longest_streak PASSED [ 91%]
+tests/test_streak.py::TestStreakService::test_missed_day_resets_streak PASSED [ 92%]
+tests/test_streak.py::TestStreakService::test_missed_multiple_days_resets_streak PASSED [ 92%]
+tests/test_streak.py::TestStreakStats::test_streak_stats_active_today PASSED [ 93%]
+tests/test_streak.py::TestStreakStats::test_streak_stats_active_yesterday PASSED [ 93%]
+tests/test_streak.py::TestStreakStats::test_streak_stats_inactive PASSED [ 94%]
+tests/test_streak.py::TestStreakStats::test_streak_stats_no_activity PASSED [ 94%]
+tests/test_streak.py::TestStreakAPI::test_get_streak_endpoint PASSED     [ 95%]
+tests/test_streak.py::TestStreakAPI::test_user_read_includes_streak PASSED [ 95%]
+tests/test_streak.py::TestStreakAPI::test_streak_unauthorized PASSED     [ 96%]
+tests/test_streak_integration.py::TestStreakIntegration::test_finish_session_updates_streak_first_time PASSED [ 96%]
+tests/test_streak_integration.py::TestStreakIntegration::test_finish_multiple_sessions_same_day PASSED [ 97%]
+tests/test_streak_integration.py::TestStreakIntegration::test_finish_session_consecutive_days PASSED [ 97%]
+tests/test_streak_integration.py::TestStreakIntegration::test_finish_session_after_missed_day PASSED [ 98%]
+tests/test_streak_integration.py::TestStreakIntegration::test_finish_session_breaks_record PASSED [ 98%]
+tests/test_streak_integration.py::TestStreakAPIIntegration::test_streak_updates_via_api PASSED [ 99%]
+tests/test_streak_integration.py::TestStreakAPIIntegration::test_user_profile_shows_updated_streak PASSED [100%]D:\D\PENN\CDA\flashcards-app\backend\.venv\Lib\site-packages\coverage\parser.py:151: RuntimeWarning: coroutine 'record_answer' was never awaited
+  for toktype, ttext, (slineno, _), (elineno, _), ltext in tokgen:
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+
+
+================================== FAILURES ===================================
+____________ TestMockedLLMGeneration.test_ollama_timeout_handling _____________
+tests\test_ai_decks.py:296: in test_ollama_timeout_handling
+    assert "timeout" in exc_info.value.detail.lower()
+E   AssertionError: assert 'timeout' in 'ollama request timed out. please try again with shorter content.'
+E    +  where 'ollama request timed out. please try again with shorter content.' = <built-in method lower of str object at 0x0000019DA04A7EB0>()
+E    +    where <built-in method lower of str object at 0x0000019DA04A7EB0> = 'Ollama request timed out. Please try again with shorter content.'.lower
+E    +      where 'Ollama request timed out. Please try again with shorter content.' = HTTPException(status_code=504, detail='Ollama request timed out. Please try again with shorter content.').detail
+E    +        where HTTPException(status_code=504, detail='Ollama request timed out. Please try again with shorter content.') = <ExceptionInfo HTTPException(status_code=504, detail='Ollama request timed out. Please try again with shorter content.') tblen=2>.value
+---------------------------- Captured stdout call -----------------------------
+2025-11-10 15:16:53.723 | ERROR    | app.services.llm_service:_generate_with_ollama:403 - Ollama request timed out
+__________ TestMockedLLMGeneration.test_card_type_defaults_to_basic ___________
+tests\test_ai_decks.py:321: in test_card_type_defaults_to_basic
+    result = await LLMService._generate_with_openai(
+app\services\llm_service.py:267: in _generate_with_openai
+    raise ValueError("No valid flashcards were generated")
+E   ValueError: No valid flashcards were generated
+_________ TestActivityData.test_get_activity_with_completed_sessions __________
+tests\test_api_study.py:392: in test_get_activity_with_completed_sessions
+    response = client.get(
+.venv\Lib\site-packages\starlette\testclient.py:523: in get
+    return super().get(
+.venv\Lib\site-packages\httpx\_client.py:1041: in get
+    return self.request(
+.venv\Lib\site-packages\starlette\testclient.py:491: in request
+    return super().request(
+.venv\Lib\site-packages\httpx\_client.py:814: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\Lib\site-packages\httpx\_client.py:901: in send
+    response = self._send_handling_auth(
+.venv\Lib\site-packages\httpx\_client.py:929: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\Lib\site-packages\httpx\_client.py:966: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\Lib\site-packages\httpx\_client.py:1002: in _send_single_request
+    response = transport.handle_request(request)
+.venv\Lib\site-packages\starlette\testclient.py:372: in handle_request
+    raise exc
+.venv\Lib\site-packages\starlette\testclient.py:369: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\Lib\site-packages\anyio\from_thread.py:288: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\Dhanush\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+C:\Users\Dhanush\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+.venv\Lib\site-packages\anyio\from_thread.py:217: in _call_func
+    retval = await retval_or_awaitable
+.venv\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\Lib\site-packages\starlette\applications.py:123: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv\Lib\site-packages\starlette\middleware\cors.py:83: in __call__
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\starlette\routing.py:758: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:778: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:299: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:79: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:64: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\starlette\routing.py:74: in app
+    response = await func(request)
+.venv\Lib\site-packages\fastapi\routing.py:278: in app
+    raw_response = await run_endpoint_function(
+.venv\Lib\site-packages\fastapi\routing.py:193: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+.venv\Lib\site-packages\starlette\concurrency.py:42: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+.venv\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+.venv\Lib\site-packages\anyio\_backends\_asyncio.py:2144: in run_sync_in_worker_thread
+    return await future
+.venv\Lib\site-packages\anyio\_backends\_asyncio.py:851: in run
+    result = context.run(func, *args)
+app\api\routes\study.py:100: in get_activity
+    activity_data = study_service.get_activity_data(db, current_user, days)
+app\services\study.py:376: in get_activity_data
+    ).all()
+.venv\Lib\site-packages\sqlalchemy\engine\result.py:1384: in all
+    return self._allrows()
+.venv\Lib\site-packages\sqlalchemy\engine\result.py:548: in _allrows
+    rows = self._fetchall_impl()
+.venv\Lib\site-packages\sqlalchemy\engine\result.py:2275: in _fetchall_impl
+    return list(self.iterator)
+.venv\Lib\site-packages\sqlalchemy\orm\loading.py:220: in chunks
+    fetch = cursor._raw_all_rows()
+.venv\Lib\site-packages\sqlalchemy\engine\result.py:541: in _raw_all_rows
+    return [make_row(row) for row in rows]
+.venv\Lib\site-packages\sqlalchemy\engine\result.py:541: in <listcomp>
+    return [make_row(row) for row in rows]
+lib/sqlalchemy/cyextension/resultproxy.pyx:22: in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+    ???
+lib/sqlalchemy/cyextension/resultproxy.pyx:79: in sqlalchemy.cyextension.resultproxy._apply_processors
+    ???
+lib/sqlalchemy/cyextension/processors.pyx:51: in sqlalchemy.cyextension.processors.str_to_date
+    ???
+E   TypeError: fromisoformat: argument must be str
+________ TestRecordAnswer.test_record_answer_review_mode_with_quality _________
+tests\test_services_study.py:351: in test_record_answer_review_mode_with_quality
+    assert response.id is not None
+E   AttributeError: 'coroutine' object has no attribute 'id'
+________ TestRecordAnswer.test_record_answer_practice_mode_auto_grades ________
+tests\test_services_study.py:365: in test_record_answer_practice_mode_auto_grades
+    assert response.is_correct is True
+E   AttributeError: 'coroutine' object has no attribute 'is_correct'
+__________ TestRecordAnswer.test_record_answer_exam_mode_auto_grades __________
+tests\test_services_study.py:376: in test_record_answer_exam_mode_auto_grades
+    assert response.is_correct is True
+E   AttributeError: 'coroutine' object has no attribute 'is_correct'
+___________ TestRecordAnswer.test_record_answer_creates_srs_review ____________
+tests\test_services_study.py:390: in test_record_answer_creates_srs_review
+    assert review is not None
+E   assert None is not None
+============================== warnings summary ===============================
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_basic_card
+  tests\test_ai_decks.py:19: PytestWarning: The test <Function test_validate_basic_card> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_validate_basic_card(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_multiple_choice_card
+  tests\test_ai_decks.py:33: PytestWarning: The test <Function test_validate_multiple_choice_card> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_validate_multiple_choice_card(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_short_answer_card
+  tests\test_ai_decks.py:48: PytestWarning: The test <Function test_validate_short_answer_card> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_validate_short_answer_card(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_validate_cloze_card
+  tests\test_ai_decks.py:61: PytestWarning: The test <Function test_validate_cloze_card> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_validate_cloze_card(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_card_missing_prompt
+  tests\test_ai_decks.py:82: PytestWarning: The test <Function test_invalid_card_missing_prompt> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_invalid_card_missing_prompt(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_card_missing_answer
+  tests\test_ai_decks.py:91: PytestWarning: The test <Function test_invalid_card_missing_answer> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_invalid_card_missing_answer(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_multiple_choice_answer_not_in_options
+  tests\test_ai_decks.py:100: PytestWarning: The test <Function test_invalid_multiple_choice_answer_not_in_options> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_invalid_multiple_choice_answer_not_in_options(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_multiple_choice_insufficient_options
+  tests\test_ai_decks.py:111: PytestWarning: The test <Function test_invalid_multiple_choice_insufficient_options> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_invalid_multiple_choice_insufficient_options(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_cloze_missing_blanks
+  tests\test_ai_decks.py:122: PytestWarning: The test <Function test_invalid_cloze_missing_blanks> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_invalid_cloze_missing_blanks(self):
+
+tests/test_ai_decks.py::TestLLMServiceValidation::test_invalid_cloze_missing_cloze_data
+  tests\test_ai_decks.py:133: PytestWarning: The test <Function test_invalid_cloze_missing_cloze_data> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_invalid_cloze_missing_cloze_data(self):
+
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_content_length_validation
+  tests\test_ai_decks.py:148: PytestWarning: The test <Function test_content_length_validation> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_content_length_validation(self):
+
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_num_cards_validation
+  tests\test_ai_decks.py:158: PytestWarning: The test <Function test_num_cards_validation> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_num_cards_validation(self):
+
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_content_truncation
+  tests\test_ai_decks.py:169: PytestWarning: The test <Function test_content_truncation> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_content_truncation(self):
+
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_system_prompt_contains_all_types
+  tests\test_ai_decks.py:181: PytestWarning: The test <Function test_system_prompt_contains_all_types> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_system_prompt_contains_all_types(self):
+
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_system_prompt_has_json_format
+  tests\test_ai_decks.py:190: PytestWarning: The test <Function test_system_prompt_has_json_format> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_system_prompt_has_json_format(self):
+
+tests/test_ai_decks.py::TestLLMServiceGeneration::test_user_prompt_includes_num_cards
+  tests\test_ai_decks.py:197: PytestWarning: The test <Function test_user_prompt_includes_num_cards> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_user_prompt_includes_num_cards(self):
+
+tests/test_ai_decks.py::TestCardTypeMixing::test_all_card_types_represented
+  tests\test_ai_decks.py:373: PytestWarning: The test <Function test_all_card_types_represented> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_all_card_types_represented(self):
+
+tests/test_ai_decks.py::TestCardTypeMixing::test_mixed_cards_all_valid
+  tests\test_ai_decks.py:389: PytestWarning: The test <Function test_mixed_cards_all_valid> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_mixed_cards_all_valid(self):
+
+tests/test_ai_decks.py::TestAPIValidation::test_validate_card_in_deck_creation
+  tests\test_ai_decks.py:430: PytestWarning: The test <Function test_validate_card_in_deck_creation> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_validate_card_in_deck_creation(self):
+
+tests/test_ai_decks.py::TestAPIValidation::test_multiple_choice_validation_in_api
+  tests\test_ai_decks.py:449: PytestWarning: The test <Function test_multiple_choice_validation_in_api> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_multiple_choice_validation_in_api(self):
+
+tests/test_ai_decks.py::TestAPIValidation::test_cloze_validation_in_api
+  tests\test_ai_decks.py:462: PytestWarning: The test <Function test_cloze_validation_in_api> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_cloze_validation_in_api(self):
+
+tests/test_services_study.py::TestRecordAnswer::test_record_answer_creates_srs_review
+  D:\D\PENN\CDA\flashcards-app\backend\tests\test_services_study.py:385: RuntimeWarning: coroutine 'record_answer' was never awaited
+    record_answer(db, quiz_session, card, test_user, answer_in)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+---------- coverage: platform win32, python 3.11.5-final-0 -----------
+Name                          Stmts   Miss  Cover   Missing
+-----------------------------------------------------------
+app\__init__.py                   0      0   100%
+app\api\__init__.py               0      0   100%
+app\api\api_v1.py                 8      0   100%
+app\api\deps.py                  40     10    75%   24, 28, 40-41, 44, 50, 55-57, 61
+app\api\routes\__init__.py        2      0   100%
+app\api\routes\ai_decks.py       87     57    34%   44-52, 83-115, 149-238
+app\api\routes\auth.py           34      2    94%   35, 44
+app\api\routes\decks.py          66      5    92%   112, 164, 188, 191, 217
+app\api\routes\study.py          44      1    98%   53
+app\api\routes\users.py          71     15    79%   49-51, 105-125
+app\core\__init__.py              2      0   100%
+app\core\config.py               28      1    96%   40
+app\core\logging.py              21      8    62%   15-25
+app\core\security.py              5      0   100%
+app\db\__init__.py                2      0   100%
+app\db\init_db.py                 9      2    78%   12-13
+app\db\session.py                 9      2    78%   21-22
+app\main.py                      19      2    89%   16-17
+app\models\__init__.py            7      0   100%
+app\models\card.py               25      0   100%
+app\models\deck.py               27      0   100%
+app\models\enums.py              16      0   100%
+app\models\study.py              62      0   100%
+app\models\tag.py                10      0   100%
+app\models\user.py               26      0   100%
+app\schemas\__init__.py           7      0   100%
+app\schemas\auth.py              21      0   100%
+app\schemas\card.py              26      0   100%
+app\schemas\common.py            14      0   100%
+app\schemas\deck.py              37      0   100%
+app\schemas\study.py             54      0   100%
+app\schemas\user.py              40      2    95%   46, 57
+app\services\__init__.py          2      0   100%
+app\services\auth.py             51      1    98%   47
+app\services\decks.py           107     13    88%   17-25, 54, 97-98, 154
+app\services\file_parser.py     109     86    21%   37-75, 83-89, 94-115, 120-145, 150-164, 169-185
+app\services\llm_service.py     234    140    40%   131-186, 218, 224, 239-240, 258-262, 272-278, 317-394, 397-398, 408-417, 430, 438, 487, 494-495, 497-498, 502-503, 510-522, 532-558, 567-604
+app\services\streak.py           26      0   100%
+app\services\study.py           180     17    91%   55, 108, 131, 161, 176-177, 200-205, 236-243
+-----------------------------------------------------------
+TOTAL                          1528    364    76%
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+
+=========================== short test summary info ===========================
+FAILED tests/test_ai_decks.py::TestMockedLLMGeneration::test_ollama_timeout_handling
+FAILED tests/test_ai_decks.py::TestMockedLLMGeneration::test_card_type_defaults_to_basic
+FAILED tests/test_api_study.py::TestActivityData::test_get_activity_with_completed_sessions
+FAILED tests/test_services_study.py::TestRecordAnswer::test_record_answer_review_mode_with_quality
+FAILED tests/test_services_study.py::TestRecordAnswer::test_record_answer_practice_mode_auto_grades
+FAILED tests/test_services_study.py::TestRecordAnswer::test_record_answer_exam_mode_auto_grades
+FAILED tests/test_services_study.py::TestRecordAnswer::test_record_answer_creates_srs_review
+================= 7 failed, 190 passed, 22 warnings in 37.10s =================

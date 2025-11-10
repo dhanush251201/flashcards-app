@@ -361,9 +361,10 @@ def get_activity_data(db: Session, user: User, days: int = 7) -> List[dict]:
     start_of_day = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Query completed quiz sessions grouped by date
+    # Use func.date() for SQLite compatibility
     result = db.exec(
         select(
-            cast(QuizSession.started_at, Date).label("date"),
+            func.date(QuizSession.started_at).label("date"),
             func.count(QuizSession.id).label("count")
         )
         .where(
@@ -371,12 +372,12 @@ def get_activity_data(db: Session, user: User, days: int = 7) -> List[dict]:
             QuizSession.status == QuizStatus.COMPLETED,
             QuizSession.started_at >= start_of_day
         )
-        .group_by(cast(QuizSession.started_at, Date))
-        .order_by(cast(QuizSession.started_at, Date))
+        .group_by(func.date(QuizSession.started_at))
+        .order_by(func.date(QuizSession.started_at))
     ).all()
 
-    # Create a dict for easy lookup
-    activity_dict = {str(row.date): row.count for row in result}
+    # Create a dict for easy lookup (date is already string from func.date())
+    activity_dict = {row.date: row.count for row in result}
 
     # Generate data for all days in the range, filling in 0 for days with no activity
     activity_data = []
