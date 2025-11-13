@@ -1,0 +1,23 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+/**
+ * Component to display flagged cards section in deck detail page
+ */
+import { useQuery } from "@tanstack/react-query";
+import { FlagIcon } from "@heroicons/react/24/solid";
+import { flaggedCardsApi } from "@/lib/flaggedCardsApi";
+import { FlagButton } from "@/components/cards/FlagButton";
+export const FlaggedCardsSection = ({ deckId }) => {
+    const { data: flaggedCards, isLoading } = useQuery({
+        queryKey: ["flaggedCards", deckId],
+        queryFn: () => flaggedCardsApi.getFlaggedCardsForDeck(deckId)
+    });
+    if (isLoading) {
+        return (_jsxs("div", { className: "rounded-3xl bg-white p-8 shadow-card dark:bg-slate-900", children: [_jsxs("div", { className: "flex items-center gap-3 mb-6", children: [_jsx(FlagIcon, { className: "h-6 w-6 text-yellow-500" }), _jsx("h2", { className: "text-xl font-semibold text-slate-900 dark:text-white", children: "Flagged Questions" })] }), _jsx("div", { className: "flex justify-center py-8", children: _jsx("div", { className: "size-8 animate-spin rounded-full border-4 border-slate-300 border-t-brand-500 dark:border-slate-700 dark:border-t-brand-300" }) })] }));
+    }
+    if (!flaggedCards || flaggedCards.length === 0) {
+        return (_jsxs("div", { className: "rounded-3xl bg-white p-8 shadow-card dark:bg-slate-900", children: [_jsxs("div", { className: "flex items-center gap-3 mb-6", children: [_jsx(FlagIcon, { className: "h-6 w-6 text-yellow-500" }), _jsx("h2", { className: "text-xl font-semibold text-slate-900 dark:text-white", children: "Flagged Questions" })] }), _jsxs("div", { className: "text-center py-8", children: [_jsx("div", { className: "mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800", children: _jsx(FlagIcon, { className: "h-8 w-8 text-slate-400" }) }), _jsx("p", { className: "text-sm text-slate-500 dark:text-slate-400", children: "No flagged questions yet. Flag questions during study sessions to review them later." })] })] }));
+    }
+    return (_jsxs("div", { className: "rounded-3xl bg-white p-8 shadow-card dark:bg-slate-900", children: [_jsx("div", { className: "flex items-center justify-between mb-6", children: _jsxs("div", { className: "flex items-center gap-3", children: [_jsx(FlagIcon, { className: "h-6 w-6 text-yellow-500" }), _jsx("h2", { className: "text-xl font-semibold text-slate-900 dark:text-white", children: "Flagged Questions" }), _jsxs("span", { className: "inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", children: [flaggedCards.length, " ", flaggedCards.length === 1 ? "card" : "cards"] })] }) }), _jsx("div", { className: "space-y-4", children: flaggedCards.map((card) => (_jsx("div", { className: "rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/50", children: _jsxs("div", { className: "flex items-start justify-between gap-4 mb-3", children: [_jsxs("div", { className: "flex-1", children: [_jsx("div", { className: "flex items-center gap-2 mb-2", children: _jsxs("span", { className: "inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-300", children: [card.type === "basic" && "Basic", card.type === "multiple_choice" && "Multiple Choice", card.type === "short_answer" && "Short Answer", card.type === "cloze" && "Cloze"] }) }), _jsxs("div", { className: "prose prose-sm dark:prose-invert max-w-none", children: [_jsx("div", { className: "text-sm font-medium text-slate-700 dark:text-slate-300 mb-2", children: card.prompt }), card.type === "multiple_choice" && card.options && (_jsx("div", { className: "mt-2 space-y-1", children: card.options.map((option, idx) => (_jsx("div", { className: `text-xs px-2 py-1 rounded ${option === card.answer
+                                                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium"
+                                                        : "text-slate-600 dark:text-slate-400"}`, children: option }, idx))) })), card.type !== "multiple_choice" && (_jsxs("div", { className: "text-xs text-slate-600 dark:text-slate-400 mt-2", children: [_jsx("span", { className: "font-semibold", children: "Answer:" }), " ", card.answer] })), card.explanation && (_jsx("div", { className: "text-xs text-slate-500 dark:text-slate-500 mt-2 italic", children: card.explanation }))] })] }), _jsx(FlagButton, { cardId: card.id, deckId: deckId, isFlagged: true, size: "sm" })] }) }, card.id))) })] }));
+};

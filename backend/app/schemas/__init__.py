@@ -4,6 +4,7 @@ from .auth import LoginRequest, RefreshRequest, RefreshResponse, SignupRequest, 
 from .card import CardCreate, CardRead, CardUpdate
 from .common import IDModelMixin, Message, Paginated, TimestampedModel
 from .deck import DeckCreate, DeckRead, DeckSummary, DeckUpdate, TagRead
+from .flagged_card import FlaggedCardCreate, FlaggedCardDelete, FlaggedCardRead
 from .study import (
     DueReviewCard,
     StudyAnswerCreate,
@@ -24,6 +25,9 @@ __all__ = [
     "DeckSummary",
     "DeckUpdate",
     "DueReviewCard",
+    "FlaggedCardCreate",
+    "FlaggedCardDelete",
+    "FlaggedCardRead",
     "IDModelMixin",
     "LoginRequest",
     "Message",

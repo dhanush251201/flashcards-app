@@ -46,6 +46,7 @@ class User(SQLModel, table=True):
     quiz_sessions: list["QuizSession"] = Relationship(back_populates="user")
     deck_progresses: list["UserDeckProgress"] = Relationship(back_populates="user")
     srs_reviews: list["SRSReview"] = Relationship(back_populates="user")
+    flagged_cards: list["FlaggedCard"] = Relationship(back_populates="user")
 
 
 from .deck import Deck  # noqa: E402  # circular import resolution

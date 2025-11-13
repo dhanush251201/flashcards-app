@@ -2,9 +2,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { AcademicCapIcon, ClockIcon, PencilIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { FlagIcon } from "@heroicons/react/24/solid";
 
 import { Flashcard } from "@/components/cards/Flashcard";
+import { FlaggedCardsSection } from "@/components/decks/FlaggedCardsSection";
 import { apiClient } from "@/lib/apiClient";
+import { flaggedCardsApi } from "@/lib/flaggedCardsApi";
 import { useAuthStore } from "@/store/authStore";
 import type { Card as CardModel, DeckDetail, StudySession } from "@/types/api";
 
@@ -112,11 +115,22 @@ export const DeckDetailPage = () => {
     enabled: Boolean(deckId)
   });
 
+  const flaggedCountQuery = useQuery({
+    queryKey: ["flaggedCount", deckId],
+    queryFn: async () => {
+      if (!deckId) return 0;
+      return await flaggedCardsApi.getFlaggedCountForDeck(Number(deckId));
+    },
+    enabled: Boolean(deckId)
+  });
+
+  const flaggedCount = flaggedCountQuery.data ?? 0;
+
   const startSession = useMutation({
-    mutationFn: async (mode: "review" | "practice" | "exam") => {
+    mutationFn: async (mode: "review" | "practice" | "exam" | "flagged") => {
       const { data } = await apiClient.post<StudySession>("/study/sessions", {
         deck_id: Number(deckId),
-        mode,
+        mode: mode === "flagged" ? "practice" : mode,
         config: mode === "exam" ? { time_limit_seconds: 600 } : { endless: mode === "practice" }
       });
       return data;
@@ -124,6 +138,22 @@ export const DeckDetailPage = () => {
     onSuccess: (session) => {
       queryClient.invalidateQueries({ queryKey: ["due-review"] });
       navigate(`/app/study/${session.id}`);
+    }
+  });
+
+  const startFlaggedSession = useMutation({
+    mutationFn: async () => {
+      // Create a practice session for flagged cards
+      const { data } = await apiClient.post<StudySession>("/study/sessions", {
+        deck_id: Number(deckId),
+        mode: "practice",
+        config: { endless: false, flagged_only: true }
+      });
+      return data;
+    },
+    onSuccess: (session) => {
+      // Pass flaggedOnly param to study session
+      navigate(`/app/study/${session.id}?flaggedOnly=true`);
     }
   });
 
@@ -395,7 +425,33 @@ export const DeckDetailPage = () => {
             </div>
           </button>
         ))}
+        {flaggedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => startFlaggedSession.mutate()}
+            className="flex h-full flex-col justify-between rounded-3xl bg-gradient-to-br from-yellow-50 to-amber-50 p-6 text-left shadow-card shadow-yellow-500/15 transition hover:-translate-y-1 hover:shadow-yellow-500/25 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-700/50"
+            disabled={startFlaggedSession.isPending}
+          >
+            <div className="space-y-3">
+              <span className="inline-flex items-center gap-2 rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-semibold text-yellow-700 dark:text-yellow-300">
+                <FlagIcon className="h-3 w-3" />
+                Flagged Questions
+              </span>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Review {flaggedCount} flagged {flaggedCount === 1 ? "question" : "questions"}
+              </p>
+            </div>
+            <div className="flex items-center justify-between text-sm font-semibold text-yellow-700 dark:text-yellow-300">
+              {startFlaggedSession.isPending ? "Preparing..." : "Start review"}
+              <FlagIcon className="size-5" />
+            </div>
+          </button>
+        )}
       </section>
+
+      {flaggedCount > 0 && deckId && (
+        <FlaggedCardsSection deckId={Number(deckId)} />
+      )}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">

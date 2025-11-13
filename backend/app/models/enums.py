@@ -17,6 +17,7 @@ class QuizMode(str, Enum):
     REVIEW = "review"
     PRACTICE = "practice"
     EXAM = "exam"
+    FLAGGED = "flagged"
 
 
 class QuizStatus(str, Enum):

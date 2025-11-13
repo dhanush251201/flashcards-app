@@ -97,6 +97,14 @@ export type SessionStatistics = {
   unanswered_count: number;
 };
 
+export type FlaggedCard = {
+  id: number;
+  user_id: number;
+  card_id: number;
+  deck_id: number;
+  flagged_at: string;
+};
+
 export type User = {
   id: number;
   email: string;

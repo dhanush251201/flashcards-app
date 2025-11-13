@@ -48,6 +48,7 @@ class Deck(SQLModel, table=True):
     tags: list["Tag"] = Relationship(back_populates="decks", link_model=DeckTagLink)
     progresses: list["UserDeckProgress"] = Relationship(back_populates="deck", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     quiz_sessions: list["QuizSession"] = Relationship(back_populates="deck", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    flagged_cards: list["FlaggedCard"] = Relationship(back_populates="deck", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 
 from .card import Card  # noqa: E402

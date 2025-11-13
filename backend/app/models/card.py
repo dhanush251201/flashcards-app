@@ -54,6 +54,7 @@ class Card(SQLModel, table=True):
     deck: "Deck" = Relationship(back_populates="cards")
     quiz_responses: list["QuizResponse"] = Relationship(back_populates="card")
     srs_reviews: list["SRSReview"] = Relationship(back_populates="card")
+    flagged_by_users: list["FlaggedCard"] = Relationship(back_populates="card")
 
 
 from .deck import Deck  # noqa: E402

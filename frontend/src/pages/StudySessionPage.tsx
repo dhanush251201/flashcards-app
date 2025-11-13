@@ -4,7 +4,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeftIcon, ArrowRightIcon, PauseIcon, PlayIcon } from "@heroicons/react/24/outline";
 
 import { Flashcard } from "@/components/cards/Flashcard";
+import { FlagButton } from "@/components/cards/FlagButton";
 import { apiClient } from "@/lib/apiClient";
+import { flaggedCardsApi } from "@/lib/flaggedCardsApi";
 import type { Card, DeckDetail, SessionStatistics, StudyResponse, StudySession } from "@/types/api";
 
 type AnswerMutationVariables = {
@@ -30,6 +32,10 @@ export const StudySessionPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Check if this is a flagged-only session
+  const searchParams = new URLSearchParams(window.location.search);
+  const isFlaggedOnly = searchParams.get("flaggedOnly") === "true";
+
   const [cardIndex, setCardIndex] = useState(0);
   const [isAutoFlip, setIsAutoFlip] = useState(false);
   const [flipped, setFlipped] = useState(false);
@@ -39,6 +45,8 @@ export const StudySessionPage = () => {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [shuffledCards, setShuffledCards] = useState<Card[]>([]);
   const [llmFeedback, setLlmFeedback] = useState<string | null>(null);
+  const [flaggedCardIds, setFlaggedCardIds] = useState<Set<number>>(new Set());
+  const [initialFlaggedCardIds, setInitialFlaggedCardIds] = useState<Set<number>>(new Set());
 
   // Exam mode state
   const [examAnswers, setExamAnswers] = useState<Map<number, string>>(new Map());
@@ -63,6 +71,27 @@ export const StudySessionPage = () => {
     },
     enabled: Boolean(sessionQuery.data?.deck_id)
   });
+
+  // Query for flagged card IDs
+  const flaggedCardsQuery = useQuery({
+    queryKey: ["flaggedCardIds", sessionQuery.data?.deck_id],
+    queryFn: async () => {
+      if (!sessionQuery.data?.deck_id) return [];
+      return await flaggedCardsApi.getFlaggedCardIds(sessionQuery.data.deck_id);
+    },
+    enabled: Boolean(sessionQuery.data?.deck_id)
+  });
+
+  // Update flagged cards state when query data changes
+  // Store initial snapshot for filtering, and current state for UI
+  useEffect(() => {
+    if (flaggedCardsQuery.data) {
+      const ids = new Set(flaggedCardsQuery.data);
+      setFlaggedCardIds(ids);
+      // Only set initial IDs once, when first loaded
+      setInitialFlaggedCardIds(prev => prev.size === 0 ? ids : prev);
+    }
+  }, [flaggedCardsQuery.data]);
 
   const answerMutation = useMutation<StudyResponse, unknown, AnswerMutationVariables>({
     mutationFn: async ({ cardId, quality, userAnswer: submittedAnswer }) => {
@@ -117,9 +146,16 @@ export const StudySessionPage = () => {
   const isExamMode = sessionMode === "exam";
   const isEndless = sessionQuery.data?.config?.endless ?? false;
 
-  // Get cards with defensive filtering for exam mode
+  // Get cards with defensive filtering for exam mode and flagged-only mode
+  // Use initialFlaggedCardIds for filtering to prevent cards from disappearing when unflagged
   const cards: Card[] = useMemo(() => {
-    const baseCards = shuffledCards.length > 0 ? shuffledCards : deckQuery.data?.cards ?? [];
+    let baseCards = shuffledCards.length > 0 ? shuffledCards : deckQuery.data?.cards ?? [];
+
+    // Filter for flagged-only sessions using INITIAL flagged IDs
+    // This prevents cards from disappearing when unflagged during the session
+    if (isFlaggedOnly && initialFlaggedCardIds.size > 0) {
+      baseCards = baseCards.filter(card => initialFlaggedCardIds.has(card.id));
+    }
 
     // In exam mode, always filter out basic cards as a safety measure
     if (isExamMode) {
@@ -134,16 +170,27 @@ export const StudySessionPage = () => {
     }
 
     return baseCards;
-  }, [shuffledCards, deckQuery.data?.cards, isExamMode]);
+  }, [shuffledCards, deckQuery.data?.cards, isExamMode, isFlaggedOnly, initialFlaggedCardIds]);
 
   const currentCard = cards[cardIndex];
 
   // Shuffle cards for practice mode on initial load
   useEffect(() => {
-    if (isPracticeMode && deckQuery.data?.cards && shuffledCards.length === 0) {
+    if (isPracticeMode && deckQuery.data?.cards && shuffledCards.length === 0 && !isFlaggedOnly) {
       setShuffledCards(shuffleArray(deckQuery.data.cards));
     }
-  }, [isPracticeMode, deckQuery.data?.cards, shuffledCards.length]);
+  }, [isPracticeMode, deckQuery.data?.cards, shuffledCards.length, isFlaggedOnly]);
+
+  // Filter and shuffle flagged cards for flagged-only mode
+  useEffect(() => {
+    if (isFlaggedOnly && deckQuery.data?.cards && shuffledCards.length === 0 && initialFlaggedCardIds.size > 0) {
+      const flaggedCards = deckQuery.data.cards.filter(card => initialFlaggedCardIds.has(card.id));
+      console.log("=== Filtering cards for flagged-only mode ===");
+      console.log("Total cards in deck:", deckQuery.data.cards.length);
+      console.log("Flagged cards:", flaggedCards.length);
+      setShuffledCards(shuffleArray(flaggedCards));
+    }
+  }, [isFlaggedOnly, deckQuery.data?.cards, shuffledCards.length, initialFlaggedCardIds]);
 
   // Filter and shuffle cards for exam mode - only include MCQ, short answer, and cloze questions
   useEffect(() => {
@@ -539,7 +586,7 @@ export const StudySessionPage = () => {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-400">
-            {isExamMode ? "Exam Session" : isPracticeMode ? "Practice Session" : "Study Session"}
+            {isFlaggedOnly ? "Flagged Questions" : isExamMode ? "Exam Session" : isPracticeMode ? "Practice Session" : "Study Session"}
           </p>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{deckQuery.data?.title}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-300">
@@ -909,12 +956,34 @@ export const StudySessionPage = () => {
           )}
 
           <div className="flex flex-col gap-3 rounded-3xl bg-slate-100/70 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</p>
-              {isExamMode && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Answered: {examAnswers.size} / {cards.length}
-                </p>
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</p>
+                {isExamMode && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Answered: {examAnswers.size} / {cards.length}
+                  </p>
+                )}
+              </div>
+              {currentCard && sessionQuery.data?.deck_id && (
+                <FlagButton
+                  cardId={currentCard.id}
+                  deckId={sessionQuery.data.deck_id}
+                  isFlagged={flaggedCardIds.has(currentCard.id)}
+                  onFlagChange={(isFlagged) => {
+                    setFlaggedCardIds((prev) => {
+                      const newSet = new Set(prev);
+                      if (isFlagged) {
+                        newSet.add(currentCard.id);
+                      } else {
+                        newSet.delete(currentCard.id);
+                      }
+                      return newSet;
+                    });
+                  }}
+                  size="sm"
+                  showLabel
+                />
               )}
             </div>
             <div className="flex items-center gap-3">
