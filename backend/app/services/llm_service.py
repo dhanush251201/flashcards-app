@@ -19,7 +19,7 @@ class LLMService:
 
     # Default model configurations
     OPENAI_MODEL = "gpt-4o-mini"  # Fast and cost-effective
-    OLLAMA_MODEL = "deepseek-r1:14b"  # Default Ollama model (using available model)
+    OLLAMA_MODEL = "gpt-oss:20b"  # Default Ollama model (using available model)
     OLLAMA_BASE_URL = "http://host.docker.internal:11434"  # Access host machine from Docker
 
     # Generation parameters

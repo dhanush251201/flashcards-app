@@ -1,7 +1,7 @@
 """add_llm_settings_to_users
 
 Revision ID: 0004_add_llm_settings
-Revises: 0003_add_is_correct
+Revises: 0003_add_streak_tracking
 Create Date: 2025-11-05
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '0004_add_llm_settings'
-down_revision: Union[str, None] = '0003_add_is_correct'
+down_revision: Union[str, None] = '0003_add_streak_tracking'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
